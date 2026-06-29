@@ -1,120 +1,203 @@
 # Session Control
 
-An Electron-based local control room for AI terminal work sessions. The MVP focuses on `tmux` as the persistent session layer, with optional non-persistent `pty` sessions for short-lived commands.
+Session Control is a local Electron desktop app for managing terminal-based AI work sessions.
 
-## Product Direction
+It is a control room for developers who run Codex, Claude Code, Gemini, shells, dev servers, builds, tests, and logs across multiple long-running terminal sessions. The app uses `tmux` as the durable session layer and gives those sessions a dashboard UI with an embedded terminal.
 
-Session Control is a local AI terminal session control center for macOS and Linux. It is meant to help developers monitor and control long-running `tmux` sessions used by tools like Codex, Claude Code, Gemini CLI, dev servers, test runners, and logs.
+The project is focused on macOS and Linux. Windows is intentionally out of scope.
 
-It is not trying to replace iTerm2, Terminal.app, Terminator, Ghostty, Tabby, or Hyper. The core idea is to sit above `tmux` and make active AI/work sessions easier to scan, attach to, and resume.
+## Why This Exists
 
-## Current Product Scope
+AI coding agents often run as CLI tools inside terminal sessions. Once several agents, shells, dev servers, and logs are running, it becomes hard to answer simple questions:
 
-The product we are building is a terminal session work control center, not a general terminal replacement.
+- Which sessions are alive?
+- Which project directory is each agent working in?
+- Which agent needs input?
+- Can I reconnect without killing the work?
+- Can I see Codex, Claude, Gemini, and shell work in one place?
 
-Primary use cases:
+Session Control solves this by sitting above `tmux`.
 
-- See active local `tmux` sessions in one place.
-- Start a new work session quickly, optionally from a chosen working directory.
-- Attach to a selected session inside the app.
-- Use long-running sessions for Codex, Claude Code, Gemini CLI, shell work, dev servers, tests, and logs.
-- Let the user fix metadata after a session already exists instead of forcing a complex creation form up front.
-- Later, connect the same desktop app to remote agents running on a Mac mini or Linux server over Tailscale.
+```text
+Electron desktop app
+  -> React dashboard
+  -> local Node backend
+  -> tmux sessions
+  -> Codex / Claude / Gemini / shell / build commands
+```
 
-Target platforms:
+It is not trying to replace iTerm2, Terminal.app, Terminator, Ghostty, Tabby, or Hyper. Those are terminals. Session Control is a session control center.
 
-- macOS
-- Linux
+## Core Features
 
-Windows is intentionally out of scope.
+- List existing local `tmux` sessions.
+- Start new tmux-backed work sessions.
+- Choose the working directory before starting a session.
+- Launch sessions as Codex, Claude, Gemini, or Shell.
+- Attach to a selected session through an embedded xterm.js terminal.
+- Keep sessions alive even if the Electron app closes.
+- Rename and kill tmux sessions.
+- Edit session metadata after creation.
+- Group sessions by project path or AI agent type.
+- Manage tmux windows from the app.
+- Create tmux splits with selected agent commands.
+- Capture pane snapshots for quick inspection.
+- Show Codex skill/tool metadata in the right panel.
+- Run a local smoke test that checks web, API, tmux parsing, and tmux window creation.
 
-## What It Does
+## Current UI
 
-- Lists existing `tmux` sessions.
-- Starts a new local `tmux` work session with one click.
-- Lets users set the working directory before starting a new session.
-- Attaches an interactive browser terminal to a selected `tmux` session.
-- Renames and kills `tmux` sessions.
-- Starts non-persistent `pty` sessions.
-- Loads quick-launch projects from `config/projects.yaml`.
-- Tracks local session metadata such as agent type, command, cwd, and host.
-- Lets users edit session metadata after the session already exists.
-- Captures `tmux` pane snapshots for quick inspection.
+The app is organized as a three-panel dashboard:
 
-## Important Design Decisions
+```text
+Left sidebar        Center workspace              Right panel
+-------------       -------------------------     --------------------
+session list        xterm.js terminal attach      session metadata
+path/AI grouping    tmux window controls          actions
+new session         tmux split controls           agent tools
+cwd picker          reconnect                     snapshot
+```
 
-- `tmux` is the persistence layer. If the app closes, `tmux` sessions should continue running.
-- `pty` is the interactive terminal bridge used to attach xterm.js to a running session.
-- The default session start flow should be lightweight: set a cwd, press `+`, then edit metadata later.
-- Existing `tmux` sessions created in iTerm2, Terminal.app, Terminator, or any shell should be discoverable.
-- Sessions not running inside `tmux` are not reliably importable.
-- Remote machines should eventually use a small agent service, not repeated ad-hoc `ssh host 'tmux ...'` commands for the main user flow.
+The main workspace shows the actual attached terminal session. For Codex, Claude, or Gemini sessions, this is where the running agent conversation appears.
 
-## Stack
+## Session Model
+
+### tmux Sessions
+
+`tmux` is the source of truth for durable work.
+
+If Session Control exits, tmux sessions keep running. When the app starts again, it lists existing tmux sessions and can attach back to them.
+
+Examples:
+
+```bash
+tmux new-session -s codex-linktrip
+tmux attach-session -t codex-linktrip
+tmux list-sessions
+```
+
+Sessions created from iTerm2, Terminal.app, Terminator, or a remote shell can be discovered as long as they are tmux sessions on the same machine.
+
+### pty Sessions
+
+The backend can also run direct pty sessions, but those are non-persistent. If the backend exits, those processes may exit too.
+
+Use tmux for important or long-running work.
+
+## Supported Agents
+
+The launch controls currently support:
+
+- Codex: `codex`
+- Claude: `claude`
+- Gemini: `agy`
+- Shell: default shell without a startup command
+
+The agent mapping is shared across sidebar session starts, tmux window creation, and tmux pane splits so the behavior stays consistent.
+
+## Tech Stack
 
 - Desktop: Electron
-- Local agent: Node.js, Express, pty bridge, WebSocket
 - Frontend: React, Vite, xterm.js
+- Backend: Node.js, Express, WebSocket
+- Terminal bridge: `@homebridge/node-pty-prebuilt-multiarch`
 - Session runtime: `tmux`
+- Config: YAML
+- Tests: Node's built-in `node:test`, smoke test script
 
-The local agent currently uses `@homebridge/node-pty-prebuilt-multiarch` for pty support because the original `node-pty` package failed on the current Node v23 runtime.
-
-The initial prompt preferred Go, but this repository currently runs on a machine without Go installed. The agent is structured around small adapters so the process/session layer can be ported to Go later without changing the UI concept.
+The original product direction considered Go for the backend. This repository currently uses Node because it fits the existing Electron/Vite workspace and works well for the MVP.
 
 ## Requirements
 
+- macOS or Linux
 - Node.js 20+
 - npm
 - tmux
 
-## Run Locally
-
-For the desktop app:
+## Install
 
 ```bash
 npm install
+```
+
+## Run
+
+Desktop app:
+
+```bash
 npm run dev:desktop
 ```
 
 This starts:
 
 - Electron desktop shell
-- React/Vite renderer on `http://127.0.0.1:3634`
-- Local session backend on `http://127.0.0.1:3635`
+- React/Vite renderer at `http://127.0.0.1:3634`
+- Local backend at `http://127.0.0.1:3635`
 
-For browser-only development:
+Browser-only development:
 
 ```bash
-npm install
 npm run dev
 ```
 
-Open:
+Then open:
 
 ```text
 http://127.0.0.1:3634
 ```
 
-The API server listens on:
-
-```text
-http://127.0.0.1:3635
-```
-
 ## Validation
 
-Run the build and smoke checks before committing UI or tmux changes:
+Run logic tests:
+
+```bash
+npm run test
+```
+
+Run TypeScript and production build checks:
 
 ```bash
 npm run build
+```
+
+Run local smoke checks:
+
+```bash
 npm run smoke
 ```
 
-`npm run smoke` expects the local app to be running on `127.0.0.1:3634` and `127.0.0.1:3635`. It checks the web shell, API health, tmux session parsing, and tmux window creation/close behavior.
+Run the full validation flow:
+
+```bash
+npm run validate
+```
+
+`npm run smoke` expects the local app to be running on `127.0.0.1:3634` and `127.0.0.1:3635`. It checks:
+
+- Electron main process syntax
+- launcher script syntax
+- web app reachability
+- API health
+- session response shape
+- tmux window listing
+- tmux window creation and close behavior
+
+## TDD Rule
+
+Future feature work should follow TDD. See [AGENT.md](./AGENT.md).
+
+In short:
+
+1. Add or update a failing test for the behavior.
+2. Implement the smallest change that makes it pass.
+3. Refactor after tests are green.
+4. Run the relevant validation command before handoff.
 
 ## Quick Launch Config
 
-Edit `config/projects.yaml`:
+Quick launch project config lives in [config/projects.yaml](./config/projects.yaml).
+
+Example:
 
 ```yaml
 projects:
@@ -131,164 +214,140 @@ projects:
     agentType: codex
 ```
 
-Set `tmux: false` for an ephemeral process directly owned by the backend. Use `tmux: true` for anything you want to survive browser disconnects or backend restarts.
+Use `tmux: true` for durable sessions. Use `tmux: false` only for short-lived processes that can be owned directly by the backend.
+
+## Project Structure
+
+```text
+desktop/
+  Electron main and preload process
+
+web/
+  React dashboard
+  xterm.js terminal component
+  session UI components
+  launch and panel-width helpers
+
+server/
+  Express API
+  WebSocket terminal attach
+  tmux command adapter
+  pty registry
+  metadata store
+  skill registry reader
+
+scripts/
+  smoke test
+  icon and launcher helpers
+
+tests/
+  node:test regression tests
+
+config/
+  quick launch project config
+```
 
 ## Architecture
 
 ```text
-desktop/
-  Electron main/preload process
-  Loads the local React UI
+Electron
+  main/preload
+    OS integration
+    single-instance behavior
+    directory picker
 
-web/
-  React dashboard
-  xterm.js terminal view
+  renderer
+    React dashboard
+    xterm.js terminal
+    session list
+    metadata/actions panel
 
-server/
-  Local agent HTTP API
+Local backend
+  HTTP API
   WebSocket terminal bridge
-  tmux command adapter
-  in-memory pty registry
-  lightweight session metadata store
-
-config/
-  quick-launch projects
+  tmux adapter
+  pty registry
+  JSON metadata store
 ```
 
-Near-term architecture:
+Terminal attach flow:
 
 ```text
-Electron desktop app
-  -> local agent at 127.0.0.1:3635
-    -> local tmux / pty / Codex / Claude / Gemini
+React TerminalPane
+  -> WebSocket /term
+  -> backend pty
+  -> tmux attach-session -d -t <session>
+  -> running shell or AI agent
 ```
 
-Later remote architecture:
+## Existing tmux Import
 
-```text
-Electron desktop app
-  -> local agent
-  -> Mac mini agent over Tailscale
-  -> Linux server agent over Tailscale
+Existing tmux sessions should appear automatically because the backend uses tmux commands such as:
+
+```bash
+tmux list-sessions
+tmux list-panes
+tmux list-windows
 ```
-
-## Existing Session Import
-
-Existing `tmux` sessions should show up because the local agent lists sessions through `tmux list-sessions`.
 
 This works:
 
 ```bash
-tmux new -s codex-linktrip
-tmux attach -t codex-linktrip
+tmux new-session -s codex-work
 ```
 
-The app can discover that session and attach to it.
+Then Session Control can discover and attach to `codex-work`.
 
 This does not work reliably:
 
-```text
-Codex/Claude/Gemini running directly in an iTerm2 tab without tmux
-Terminal.app tabs that are not tmux sessions
-Arbitrary shell processes outside tmux
-```
+- arbitrary iTerm2 tabs that are not tmux sessions
+- Terminal.app windows that are not tmux sessions
+- Claude/Codex/Gemini processes started directly outside tmux
 
-For imported sessions, metadata such as `cwd`, `command`, and `agentType` may be incomplete at first. The user can edit it in the right panel. A planned improvement is to infer `cwd` and active command from tmux pane metadata.
+## Remote Direction
 
-## Version 1 Plan
+Remote Mac mini and Linux support should eventually use a small remote agent instead of repeated ad-hoc SSH commands.
 
-### Done
-
-- Electron desktop shell.
-- React/xterm.js dashboard.
-- Local agent API.
-- `tmux` session listing.
-- One-click new local tmux work session.
-- User-provided start cwd.
-- Attach to tmux through pty and WebSocket.
-- Rename and kill tmux sessions.
-- Quick launch config.
-- Agent type metadata: Codex, Claude, Gemini, Shell, Build, Custom.
-- Editable session metadata after creation.
-- Basic `tmux capture-pane` snapshot.
-- Empty tmux state returns `[]` instead of an API error.
-
-### Next
-
-- Improve existing tmux session import:
-  - read `pane_current_path`
-  - read `pane_current_command`
-  - infer agent type from session name and active command
-- Improve new-session UX:
-  - quick cwd picker
-  - recent cwd list
-  - project presets
-  - launch agent from selected cwd
-- Add session status:
-  - running
-  - idle
-  - waiting input
-  - needs approval
-  - completed
-  - error
-- Add agent-specific detectors:
-  - Codex waiting for input
-  - Claude approval prompt
-  - Gemini waiting/completed states
-- Add desktop notifications for waiting/completed/error states.
-- Persist metadata in SQLite instead of JSON.
-- Add session event timeline and command history.
-- Package macOS and Linux builds.
-
-## Later Remote Plan
-
-The Mac mini and Linux server flow should use a remote agent:
+Target shape:
 
 ```text
-MacBook Electron app
+MacBook Session Control
+  -> local backend
   -> Mac mini session-control-agent over Tailscale
-    -> tmux / Codex / Claude / Gemini running locally on Mac mini
+  -> tmux / Codex / Claude / Gemini on Mac mini
 ```
 
-Why remote agent instead of repeated SSH wrapping:
+Why a remote agent:
 
-- Better day-to-day UX.
-- Faster session list and attach.
-- More reliable status monitoring.
-- Cleaner snapshot/log/event collection.
-- Easier to support notifications and agent state.
+- faster session list and attach
+- stable reconnect behavior
+- better monitoring
+- cleaner snapshots and logs
+- easier notifications
 
-Minimum remote agent requirements:
+## Roadmap
 
-- Bind to localhost by default.
-- Remote mode must bind only to a Tailscale address or explicitly configured host.
-- Token-based authentication.
-- Same HTTP/WebSocket API shape as the local agent.
-- macOS and Linux support.
+Near term:
 
-## Reference Apps
+- More regression tests around tmux parsing and attach behavior.
+- Better detection for Codex, Claude, and Gemini waiting states.
+- Desktop notifications for waiting input, completion, and errors.
+- Recent working directories.
+- Cleaner project presets.
+- More robust snapshot and timeline UI.
 
-Useful projects to study:
+Later:
 
-- Tabby: Electron terminal app with profiles, SSH, split panes, notifications.
-- Hyper: web-technology terminal app and plugin model.
-- electerm: Electron SSH/SFTP/terminal client.
-- Wave Terminal: AI-oriented terminal workflow ideas.
+- SQLite metadata store.
+- Remote agent for Mac mini and Linux hosts.
+- Packaged macOS app build.
+- Linux desktop packaging.
+- Session timeline and command history.
+- Agent status monitor across local and remote machines.
 
-Our differentiation is the control-room layer for AI agent sessions, not building the most complete standalone terminal emulator.
+## Non-Goals
 
-## Open Questions
-
-- Should the local agent eventually be bundled inside Electron or installed as a separate background service?
-- Should session metadata edits automatically rename tmux sessions, or remain separate labels?
-- How much terminal output should be stored for status detection?
-- Which notification events are useful enough to avoid noise?
-- Should remote agents be manually installed first, or should the desktop app bootstrap them over SSH once?
-
-## Immediate Next Work
-
-The next coding task should probably be existing session import quality:
-
-1. Use `tmux display-message` to read current pane path and command.
-2. Show imported sessions with better `cwd`, command hints, and agent type.
-3. Keep user-edited metadata as the source of truth after the user saves it.
+- Replacing full terminal emulators.
+- Windows, PowerShell, WSL, or ConPTY support.
+- iTerm2 or Terminator plugin integration in v1.
+- Running remote sessions only through repeated SSH command prefixes as the primary UX.
