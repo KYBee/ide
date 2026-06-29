@@ -169,7 +169,8 @@ async function main() {
   console.log(`smoke - api ${apiBaseUrl}`);
 
   runSyntaxCheck("node", ["--check", "desktop/main.cjs"], "desktop main syntax");
-  runSyntaxCheck("zsh", ["-n", "Session Control Launcher.app/Contents/MacOS/session-control-launcher"], "launcher syntax");
+  runSyntaxCheck("zsh", ["-n", "scripts/session-control-launcher.zsh"], "launcher shell syntax");
+  runSyntaxCheck("node", ["--check", "scripts/session-control-launcher.jxa.js"], "launcher jxa syntax");
 
   const html = await readText(`${webBaseUrl}/`, "web index");
   assert(html.includes('<div id="root"></div>'), "web index contains root mount");

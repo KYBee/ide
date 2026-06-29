@@ -64,11 +64,22 @@ function createMainWindow() {
   return win;
 }
 
+function ensureMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return createMainWindow();
+  }
+  focusMainWindow();
+  return mainWindow;
+}
+
 function focusMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
+  if (process.platform === "darwin" && app.dock) app.dock.show();
   mainWindow.show();
   if (typeof mainWindow.moveTop === "function") mainWindow.moveTop();
+  mainWindow.setAlwaysOnTop(true, "screen-saver");
+  mainWindow.setAlwaysOnTop(false);
   mainWindow.focus();
   if (typeof app.focus === "function") app.focus({ steal: true });
 }
@@ -129,15 +140,15 @@ app.setName("Session Control");
 nativeTheme.themeSource = "dark";
 
 app.on("second-instance", () => {
-  focusMainWindow();
+  ensureMainWindow();
 });
 
 app.whenReady().then(() => {
   buildMenu();
-  createMainWindow();
+  ensureMainWindow();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    ensureMainWindow();
   });
 });
 
