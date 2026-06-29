@@ -89,6 +89,14 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function sessionRouteName(session: SessionSummary): string {
+  return session.type === "pty" ? session.id.slice("pty:".length) : session.name;
+}
+
+function tmuxSessionPath(session: SessionSummary): string {
+  return `/api/sessions/tmux/${encodeURIComponent(session.name)}`;
+}
+
 export function listSessions(): Promise<SessionSummary[]> {
   return request("/api/sessions");
 }
@@ -124,7 +132,7 @@ export function updateSessionMetadata(
     tags?: string[];
   }
 ): Promise<void> {
-  const name = session.type === "pty" ? session.id.slice("pty:".length) : session.name;
+  const name = sessionRouteName(session);
   return request(`/api/sessions/${session.type}/${encodeURIComponent(name)}/metadata`, {
     method: "PATCH",
     body: JSON.stringify(input)
@@ -136,12 +144,12 @@ export function launchProject(index: number): Promise<SessionSummary | { id: str
 }
 
 export function killSession(session: SessionSummary): Promise<void> {
-  const name = session.type === "pty" ? session.id.slice("pty:".length) : session.name;
+  const name = sessionRouteName(session);
   return request(`/api/sessions/${session.type}/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 export function renameTmuxSession(session: SessionSummary, name: string): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}`, {
+  return request(tmuxSessionPath(session), {
     method: "PATCH",
     body: JSON.stringify({ name })
   });
@@ -155,52 +163,52 @@ export interface SessionSnapshot {
 }
 
 export function captureSnapshot(session: SessionSummary): Promise<SessionSnapshot> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/snapshot`);
+  return request(`${tmuxSessionPath(session)}/snapshot`);
 }
 
 export function sendTmuxCommand(session: SessionSummary, command: string): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/send`, {
+  return request(`${tmuxSessionPath(session)}/send`, {
     method: "POST",
     body: JSON.stringify({ command })
   });
 }
 
 export function insertTmuxText(session: SessionSummary, text: string): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/input`, {
+  return request(`${tmuxSessionPath(session)}/input`, {
     method: "POST",
     body: JSON.stringify({ text })
   });
 }
 
 export function listTmuxWindows(session: SessionSummary): Promise<TmuxWindowsResponse> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/windows`);
+  return request(`${tmuxSessionPath(session)}/windows`);
 }
 
 export function createTmuxWindow(
   session: SessionSummary,
   input: { name?: string; cwd?: string; command?: string } = {}
 ): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/windows`, {
+  return request(`${tmuxSessionPath(session)}/windows`, {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
 export function selectTmuxWindow(session: SessionSummary, windowIndex: number): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/windows/${windowIndex}/select`, {
+  return request(`${tmuxSessionPath(session)}/windows/${windowIndex}/select`, {
     method: "POST"
   });
 }
 
 export function renameTmuxWindow(session: SessionSummary, windowIndex: number, name: string): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/windows/${windowIndex}`, {
+  return request(`${tmuxSessionPath(session)}/windows/${windowIndex}`, {
     method: "PATCH",
     body: JSON.stringify({ name })
   });
 }
 
 export function killTmuxWindow(session: SessionSummary, windowIndex: number): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/windows/${windowIndex}`, {
+  return request(`${tmuxSessionPath(session)}/windows/${windowIndex}`, {
     method: "DELETE"
   });
 }
@@ -210,20 +218,20 @@ export function splitTmuxPane(
   windowIndex: number,
   input: { direction: "horizontal" | "vertical"; cwd?: string; command?: string }
 ): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/windows/${windowIndex}/panes/split`, {
+  return request(`${tmuxSessionPath(session)}/windows/${windowIndex}/panes/split`, {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
 export function selectTmuxPane(session: SessionSummary, paneId: string): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/panes/${encodeURIComponent(paneId)}/select`, {
+  return request(`${tmuxSessionPath(session)}/panes/${encodeURIComponent(paneId)}/select`, {
     method: "POST"
   });
 }
 
 export function killTmuxPane(session: SessionSummary, paneId: string): Promise<void> {
-  return request(`/api/sessions/tmux/${encodeURIComponent(session.name)}/panes/${encodeURIComponent(paneId)}`, {
+  return request(`${tmuxSessionPath(session)}/panes/${encodeURIComponent(paneId)}`, {
     method: "DELETE"
   });
 }

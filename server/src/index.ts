@@ -79,6 +79,14 @@ const splitPaneSchema = z.object({
 });
 
 const windowIndexSchema = z.coerce.number().int().min(0);
+type SessionMetadataPatch = Parameters<typeof updateSessionMetadata>[1];
+
+function touchTmuxSession(name: string, patch: SessionMetadataPatch = {}) {
+  updateSessionMetadata(`tmux:${name}`, {
+    ...patch,
+    lastActiveAt: new Date().toISOString()
+  });
+}
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
@@ -240,10 +248,7 @@ app.post("/api/sessions/tmux/:name/send", async (req, res, next) => {
   try {
     const input = sendKeysSchema.parse(req.body);
     await sendKeysToTmuxSession(req.params.name, input.command);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      command: input.command,
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name, { command: input.command });
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -254,9 +259,7 @@ app.post("/api/sessions/tmux/:name/input", async (req, res, next) => {
   try {
     const input = inputTextSchema.parse(req.body);
     await sendLiteralToTmuxSession(req.params.name, input.text);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -276,9 +279,7 @@ app.post("/api/sessions/tmux/:name/windows", async (req, res, next) => {
   try {
     const input = createWindowSchema.parse(req.body);
     await createTmuxWindow(req.params.name, input);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -289,9 +290,7 @@ app.post("/api/sessions/tmux/:name/windows/:windowIndex/select", async (req, res
   try {
     const windowIndex = windowIndexSchema.parse(req.params.windowIndex);
     await selectTmuxWindow(req.params.name, windowIndex);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -318,9 +317,7 @@ app.delete("/api/sessions/tmux/:name/windows/:windowIndex", async (req, res, nex
       return;
     }
     await killTmuxWindow(req.params.name, windowIndex);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -332,9 +329,7 @@ app.post("/api/sessions/tmux/:name/windows/:windowIndex/panes/split", async (req
     const windowIndex = windowIndexSchema.parse(req.params.windowIndex);
     const input = splitPaneSchema.parse(req.body);
     await splitTmuxPane(req.params.name, windowIndex, input);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -344,9 +339,7 @@ app.post("/api/sessions/tmux/:name/windows/:windowIndex/panes/split", async (req
 app.post("/api/sessions/tmux/:name/panes/:paneId/select", async (req, res, next) => {
   try {
     await selectTmuxPane(req.params.paneId);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -356,9 +349,7 @@ app.post("/api/sessions/tmux/:name/panes/:paneId/select", async (req, res, next)
 app.delete("/api/sessions/tmux/:name/panes/:paneId", async (req, res, next) => {
   try {
     await killTmuxPane(req.params.paneId);
-    updateSessionMetadata(`tmux:${req.params.name}`, {
-      lastActiveAt: new Date().toISOString()
-    });
+    touchTmuxSession(req.params.name);
     res.status(204).send();
   } catch (error) {
     next(error);
