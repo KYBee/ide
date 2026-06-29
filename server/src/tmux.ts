@@ -46,6 +46,12 @@ const TMUX_WINDOW_PANE_FORMAT = [
   "#{pane_height}"
 ].join(FIELD_SEPARATOR);
 
+const INTERNAL_TMUX_SESSION_NAMES = new Set([
+  "session-control-server",
+  "session-control-web",
+  "session-control-desktop"
+]);
+
 interface TmuxPaneInfo {
   paneId: string;
   active: boolean;
@@ -59,6 +65,10 @@ function runTmux(args: string[]) {
 
 function tmuxLines(stdout: string): string[] {
   return stdout.split("\n").filter(Boolean);
+}
+
+export function isInternalSessionControlTmuxSession(name: string): boolean {
+  return INTERNAL_TMUX_SESSION_NAMES.has(name);
 }
 
 function shellCommand(command: string): string {
@@ -111,6 +121,10 @@ export async function listTmuxSessions(): Promise<SessionSummary[]> {
       listTmuxPanesBySession()
     ]);
     return tmuxLines(stdout)
+      .filter((line) => {
+        const [_id, name] = line.split(FIELD_SEPARATOR);
+        return !isInternalSessionControlTmuxSession(name);
+      })
       .map((line) => {
         const [id, name, created, lastAttached, attached, windows] = line.split(FIELD_SEPARATOR);
         const panes = panesBySession.get(name) ?? [];

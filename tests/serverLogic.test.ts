@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { inferAgentType } from "../server/src/metadataStore";
-import { detectSessionStatus } from "../server/src/tmux";
+import { detectSessionStatus, isInternalSessionControlTmuxSession } from "../server/src/tmux";
 
 test("inferAgentType recognizes supported local agents", () => {
   assert.equal(inferAgentType("run codex"), "codex");
@@ -19,4 +19,12 @@ test("detectSessionStatus keeps attention states distinguishable", () => {
   assert.equal(detectSessionStatus("Waiting for input"), "waiting_input");
   assert.equal(detectSessionStatus("completed successfully"), "completed");
   assert.equal(detectSessionStatus("working on files"), "running");
+});
+
+test("internal Session Control runtime tmux sessions are hidden from users", () => {
+  assert.equal(isInternalSessionControlTmuxSession("session-control-server"), true);
+  assert.equal(isInternalSessionControlTmuxSession("session-control-web"), true);
+  assert.equal(isInternalSessionControlTmuxSession("session-control-desktop"), true);
+  assert.equal(isInternalSessionControlTmuxSession("session-control-user-work"), false);
+  assert.equal(isInternalSessionControlTmuxSession("codex-session-control"), false);
 });
