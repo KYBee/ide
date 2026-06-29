@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { inferAgentType } from "../server/src/metadataStore";
-import { detectSessionStatus, isInternalSessionControlTmuxSession } from "../server/src/tmux";
+import { buildTmuxShellCommand, detectSessionStatus, isInternalSessionControlTmuxSession } from "../server/src/tmux";
 
 test("inferAgentType recognizes supported local agents", () => {
   assert.equal(inferAgentType("run codex"), "codex");
@@ -27,4 +27,11 @@ test("internal Session Control runtime tmux sessions are hidden from users", () 
   assert.equal(isInternalSessionControlTmuxSession("session-control-desktop"), true);
   assert.equal(isInternalSessionControlTmuxSession("session-control-user-work"), false);
   assert.equal(isInternalSessionControlTmuxSession("codex-session-control"), false);
+});
+
+test("tmux launch commands run through the user's login shell", () => {
+  const command = buildTmuxShellCommand("agy");
+  assert.match(command, /exec '.+' -lic/);
+  assert.match(command, /agy/);
+  assert.match(command, /exec '.+' -l/);
 });

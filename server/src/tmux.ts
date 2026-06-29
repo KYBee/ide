@@ -71,8 +71,18 @@ export function isInternalSessionControlTmuxSession(name: string): boolean {
   return INTERNAL_TMUX_SESSION_NAMES.has(name);
 }
 
-function shellCommand(command: string): string {
-  return `${command}; exec ${process.env.SHELL ?? "/bin/zsh"}`;
+function shellPath(): string {
+  return process.env.SHELL ?? "/bin/zsh";
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+export function buildTmuxShellCommand(command: string): string {
+  const shell = shellPath();
+  const interactiveCommand = `${command}; exec ${shellQuote(shell)} -l`;
+  return `exec ${shellQuote(shell)} -lic ${shellQuote(interactiveCommand)}`;
 }
 
 function targetSession(name: string): string {
@@ -194,7 +204,7 @@ export async function createTmuxSession(input: {
     input.name
   ];
   if (input.cwd) args.push("-c", expandHome(input.cwd));
-  if (input.command) args.push(shellCommand(input.command));
+  if (input.command) args.push(buildTmuxShellCommand(input.command));
   await runTmux(args);
 }
 
@@ -243,7 +253,7 @@ export async function createTmuxWindow(sessionName: string, input: {
   const args = ["new-window", "-t", targetSession(sessionName)];
   if (input.name) args.push("-n", input.name);
   if (input.cwd) args.push("-c", expandHome(input.cwd));
-  if (input.command) args.push(shellCommand(input.command));
+  if (input.command) args.push(buildTmuxShellCommand(input.command));
   await runTmux(args);
 }
 
@@ -271,7 +281,7 @@ export async function splitTmuxPane(sessionName: string, windowIndex: number, in
     targetWindow(sessionName, windowIndex)
   ];
   if (input.cwd) args.push("-c", expandHome(input.cwd));
-  if (input.command) args.push(shellCommand(input.command));
+  if (input.command) args.push(buildTmuxShellCommand(input.command));
   await runTmux(args);
 }
 
