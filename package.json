@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n server,web -c cyan,magenta \"npm run dev --workspace server\" \"npm run dev --workspace web\"",
     "dev:desktop": "concurrently -k -n server,web,desktop -c cyan,magenta,yellow \"npm run dev --workspace server\" \"npm run dev --workspace web\" \"npm run dev --workspace desktop\"",
-    "launch:desktop": "concurrently -k -n server,web,desktop -c cyan,magenta,yellow \"npm run start --workspace server\" \"npm run preview --workspace web\" \"npm run dev --workspace desktop\"",
+    "launch:desktop": "zsh scripts/session-control-launcher.zsh",
     "install:launcher": "zsh scripts/install-launcher-app.zsh",
     "build": "npm run build --workspace server && npm run build --workspace web",
     "test": "node --import tsx --test tests/*.test.ts",

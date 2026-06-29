@@ -7,6 +7,10 @@ LOG_DIR="$PROJECT_DIR/.session-control"
 LOG_FILE="$LOG_DIR/launcher.log"
 LOCK_DIR="$LOG_DIR/launcher.lock"
 PID_FILE="$LOCK_DIR/pid"
+SERVER_TMUX_SESSION="session-control-server"
+WEB_TMUX_SESSION="session-control-web"
+DESKTOP_TMUX_SESSION="session-control-desktop"
+RUNTIME_TMUX_SOCKET="session-control-runtime"
 
 mkdir -p "$LOG_DIR"
 
@@ -35,6 +39,59 @@ app_ports_are_ready() {
     curl -fsS "http://127.0.0.1:3635/api/health" >/dev/null 2>&1
 }
 
+wait_for_ready() {
+  local attempts=0
+  while [ "$attempts" -lt 40 ]; do
+    if app_ports_are_ready; then
+      log_line "Session Control ports are ready"
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    sleep 0.5
+  done
+
+  log_line "Session Control did not become ready in time"
+  return 1
+}
+
+tmux_has_session() {
+  tmux -L "$RUNTIME_TMUX_SOCKET" has-session -t "=$1" >/dev/null 2>&1
+}
+
+restart_tmux_service() {
+  local session_name="$1"
+  local script_path="$2"
+  if tmux_has_session "$session_name"; then
+    tmux -L "$RUNTIME_TMUX_SOCKET" kill-session -t "=$session_name" >/dev/null 2>&1 || true
+  fi
+  tmux -L "$RUNTIME_TMUX_SOCKET" new-session -d -s "$session_name" -c "$PROJECT_DIR" "$script_path >>\"$LOG_FILE\" 2>&1"
+}
+
+start_server_service() {
+  if port_is_listening 3635; then
+    log_line "Server port 3635 is already listening"
+    return
+  fi
+
+  log_line "Starting Session Control server tmux service"
+  restart_tmux_service "$SERVER_TMUX_SESSION" "$PROJECT_DIR/scripts/session-control-server.zsh"
+}
+
+start_web_service() {
+  if port_is_listening 3634; then
+    log_line "Web port 3634 is already listening"
+    return
+  fi
+
+  log_line "Starting Session Control web tmux service"
+  restart_tmux_service "$WEB_TMUX_SESSION" "$PROJECT_DIR/scripts/session-control-web.zsh"
+}
+
+start_desktop_service() {
+  log_line "Starting Session Control desktop tmux signal"
+  restart_tmux_service "$DESKTOP_TMUX_SESSION" "$PROJECT_DIR/scripts/session-control-desktop.zsh"
+}
+
 start_full_stack() {
   {
     echo ""
@@ -43,17 +100,17 @@ start_full_stack() {
     if [ ! -f "$PROJECT_DIR/server/dist/index.js" ] || [ ! -f "$PROJECT_DIR/web/dist/index.html" ]; then
       npm run build
     fi
-    npm run launch:desktop
+    start_server_service
+    start_web_service
+    wait_for_ready
+    start_desktop_shell
   } >>"$LOG_FILE" 2>&1
 }
 
 start_desktop_shell() {
-  {
-    echo ""
-    log_line "Starting Session Control desktop shell against existing ports"
-    cd "$PROJECT_DIR"
-    npm run dev --workspace desktop
-  } >>"$LOG_FILE" 2>&1
+  echo "" >>"$LOG_FILE" 2>&1
+  log_line "Starting Session Control desktop shell against existing ports"
+  start_desktop_service
 }
 
 if app_ports_are_ready; then
