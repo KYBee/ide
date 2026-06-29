@@ -1,0 +1,14 @@
+{
+  "name": "advanced-terminal-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Electron shell for the local AI terminal session control center.",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "wait-on http://127.0.0.1:3634 http://127.0.0.1:3635/api/health && electron ."
+  },
+  "devDependencies": {
+    "electron": "^41.2.1",
+    "wait-on": "^8.0.1"
+  }
+}

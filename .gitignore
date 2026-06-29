@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+.session-control/
+*.app/
+assets/icon-normalized.iconset/
+.DS_Store
+*.log
+.env
+.env.local

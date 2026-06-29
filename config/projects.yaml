@@ -1,0 +1,16 @@
+projects:
+  - name: Shell
+    cwd: ~
+    command: $SHELL
+    tmux: true
+    agentType: shell
+    tags:
+      - local
+
+  - name: Codex Workspace
+    cwd: ~/Documents/advanced-terminal
+    command: codex
+    tmux: true
+    agentType: codex
+    tags:
+      - agent

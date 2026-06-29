@@ -1,0 +1,25 @@
+{
+  "name": "advanced-terminal",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local terminal session control center for tmux and pty sessions.",
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm run dev --workspace server\" \"npm run dev --workspace web\"",
+    "dev:desktop": "concurrently -k -n server,web,desktop -c cyan,magenta,yellow \"npm run dev --workspace server\" \"npm run dev --workspace web\" \"npm run dev --workspace desktop\"",
+    "build": "npm run build --workspace server && npm run build --workspace web",
+    "smoke": "node scripts/smoke.mjs",
+    "validate": "npm run build && npm run smoke",
+    "start": "npm run start --workspace server"
+  },
+  "workspaces": [
+    "server",
+    "web",
+    "desktop"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1"
+  }
+}
