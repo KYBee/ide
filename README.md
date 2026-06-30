@@ -208,6 +208,19 @@ Linux 요구사항:
 
 macOS `.app` 런처는 Linux에 적용되지 않습니다. 이후 Linux 패키징은 AppImage, `.deb`, 또는 다른 데스크톱 네이티브 포맷으로 추가하는 방향이 좋습니다.
 
+## 원격 Mac mini agent
+
+VPN으로 접근 가능한 Mac mini에서도 Session Control server를 agent 모드로 실행하면, 메인 Mac의 Session Control 화면에서 로컬 tmux 세션과 Mac mini tmux 세션을 함께 볼 수 있습니다.
+
+```text
+Main Mac Session Control
+  -> local tmux
+  -> Mac mini Session Control agent
+      -> Mac mini tmux / Codex / shell sessions
+```
+
+설치와 연결 절차는 [docs/remote-agent.md](docs/remote-agent.md)를 참고합니다.
+
 ## 검증
 
 로직 테스트 실행:
