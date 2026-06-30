@@ -170,7 +170,7 @@ async function main() {
 
   runSyntaxCheck("node", ["--check", "desktop/main.cjs"], "desktop main syntax");
   runSyntaxCheck("zsh", ["-n", "scripts/session-control-launcher.zsh"], "launcher shell syntax");
-  runSyntaxCheck("node", ["--check", "scripts/session-control-launcher.jxa.js"], "launcher jxa syntax");
+  runSyntaxCheck("clang", ["-fsyntax-only", "scripts/session-control-launcher-main.c"], "launcher native syntax");
 
   const html = await readText(`${webBaseUrl}/`, "web index");
   assert(html.includes('<div id="root"></div>'), "web index contains root mount");

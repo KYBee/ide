@@ -1,10 +1,12 @@
 # Session Control
 
-Session Control is a local Electron desktop app for managing terminal-based AI work sessions.
+Session Control is a local desktop/web app for managing terminal-based AI work sessions.
 
 It is a control room for developers who run Codex, Claude Code, Gemini, shells, dev servers, builds, tests, and logs across multiple long-running terminal sessions. The app uses `tmux` as the durable session layer and gives those sessions a dashboard UI with an embedded terminal.
 
 The project is focused on macOS and Linux. Windows is intentionally out of scope.
+
+The current app is an MVP/development build. On macOS, the repository includes a local Dock launcher that starts the development stack. A fully packaged `Session Control.app` is planned, but not required for day-to-day MVP testing.
 
 ## Why This Exists
 
@@ -104,6 +106,7 @@ The agent mapping is shared across sidebar session starts, tmux window creation,
 - Session runtime: `tmux`
 - Config: YAML
 - Tests: Node's built-in `node:test`, smoke test script
+- macOS launcher: local `.app` wrapper with a tiny native launcher binary
 
 The original product direction considered Go for the backend. This repository currently uses Node because it fits the existing Electron/Vite workspace and works well for the MVP.
 
@@ -122,7 +125,7 @@ npm install
 
 ## Run
 
-Desktop app:
+Desktop development app:
 
 ```bash
 npm run dev:desktop
@@ -133,6 +136,8 @@ This starts:
 - Electron desktop shell
 - React/Vite renderer at `http://127.0.0.1:3634`
 - Local backend at `http://127.0.0.1:3635`
+
+Because this is still the development Electron runtime, macOS may show an `Electron` process/icon for the actual window. The macOS launcher below is a convenience launcher, not a fully packaged app.
 
 Browser-only development:
 
@@ -145,6 +150,63 @@ Then open:
 ```text
 http://127.0.0.1:3634
 ```
+
+## macOS Launcher
+
+The repository can install a local Dock-friendly launcher:
+
+```bash
+npm run install:launcher
+open "Session Control Launcher.app"
+```
+
+The launcher does this:
+
+```text
+Session Control Launcher.app
+  -> native launcher binary
+  -> scripts/session-control-launcher.zsh
+  -> isolated tmux runtime socket
+  -> server, web, and Electron desktop processes
+```
+
+The internal runtime sessions use a separate tmux socket named `session-control-runtime`, so they do not appear in the user's normal Session Control session list.
+
+Current limitation:
+
+- The launcher is macOS-only.
+- The actual window still uses the development Electron runtime.
+- A future packaged build should replace this with a real `Session Control.app`, so Dock and menu bar identity are fully owned by the app.
+
+## Linux Usage
+
+The core app already works on Linux as a local web/dashboard workflow. Install the same dependencies and run either the browser UI or the development desktop shell:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://127.0.0.1:3634
+```
+
+For the Electron shell on Linux:
+
+```bash
+npm run dev:desktop
+```
+
+Linux requirements:
+
+- `tmux`
+- Node.js and npm
+- a working shell such as `bash` or `zsh`
+- optional agent CLIs such as `codex`, `claude`, and `agy`
+
+The macOS `.app` launcher does not apply to Linux. Linux packaging should eventually be added as an AppImage, `.deb`, or another desktop-native format.
 
 ## Validation
 
@@ -176,6 +238,7 @@ npm run validate
 
 - Electron main process syntax
 - launcher script syntax
+- native launcher syntax
 - web app reachability
 - API health
 - session response shape
@@ -238,7 +301,9 @@ server/
 
 scripts/
   smoke test
-  icon and launcher helpers
+  icon helpers
+  macOS launcher scripts
+  service wrapper scripts
 
 tests/
   node:test regression tests
@@ -250,7 +315,7 @@ config/
 ## Architecture
 
 ```text
-Electron
+Electron desktop shell
   main/preload
     OS integration
     single-instance behavior
@@ -268,6 +333,28 @@ Local backend
   tmux adapter
   pty registry
   JSON metadata store
+```
+
+Current development runtime:
+
+```text
+npm run dev:desktop
+  -> concurrently
+  -> server dev process
+  -> web dev process
+  -> electron .
+```
+
+macOS launcher runtime:
+
+```text
+Session Control Launcher.app
+  -> native launcher binary
+  -> scripts/session-control-launcher.zsh
+  -> tmux -L session-control-runtime
+  -> server: npm run start --workspace server
+  -> web: npm run preview --workspace web
+  -> desktop: npm run dev --workspace desktop
 ```
 
 Terminal attach flow:

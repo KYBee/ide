@@ -2,7 +2,8 @@
 
 set -eu
 
-PROJECT_DIR="/Users/kybee/Documents/advanced-terminal"
+SCRIPT_DIR="${0:A:h}"
+PROJECT_DIR="${SCRIPT_DIR:h}"
 LOG_DIR="$PROJECT_DIR/.session-control"
 LOG_FILE="$LOG_DIR/launcher.log"
 LOCK_DIR="$LOG_DIR/launcher.lock"
@@ -14,18 +15,32 @@ RUNTIME_TMUX_SOCKET="session-control-runtime"
 
 mkdir -p "$LOG_DIR"
 
-export PATH="/Users/kybee/.nvm/versions/node/v20.20.2/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 log_line() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >>"$LOG_FILE" 2>&1
 }
 
 activate_existing_app() {
-  open -a "Electron" >/dev/null 2>&1 && return 0
-  osascript -e 'tell application "Electron" to activate' >/dev/null 2>&1 && return 0
   osascript -e 'tell application "Session Control" to activate' >/dev/null 2>&1 && return 0
   osascript -e 'tell application "System Events" to set frontmost of first process whose name is "Session Control" to true' >/dev/null 2>&1 && return 0
+  osascript -e 'tell application "Electron" to activate' >/dev/null 2>&1 && return 0
   osascript -e 'tell application "System Events" to set frontmost of first process whose name is "Electron" to true' >/dev/null 2>&1 && return 0
+  return 1
+}
+
+focus_desktop_shell() {
+  local attempts=0
+  while [ "$attempts" -lt 40 ]; do
+    if activate_existing_app; then
+      log_line "Session Control desktop shell activated"
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    sleep 0.25
+  done
+
+  log_line "Session Control desktop shell did not activate in time"
   return 1
 }
 
@@ -34,9 +49,7 @@ port_is_listening() {
 }
 
 app_ports_are_ready() {
-  port_is_listening 3634 &&
-    port_is_listening 3635 &&
-    curl -fsS "http://127.0.0.1:3635/api/health" >/dev/null 2>&1
+  port_is_listening 3634 && port_is_listening 3635
 }
 
 wait_for_ready() {
@@ -111,6 +124,7 @@ start_desktop_shell() {
   echo "" >>"$LOG_FILE" 2>&1
   log_line "Starting Session Control desktop shell against existing ports"
   start_desktop_service
+  focus_desktop_shell || true
 }
 
 if app_ports_are_ready; then
