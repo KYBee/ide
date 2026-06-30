@@ -6,7 +6,7 @@ export interface SessionSummary {
   id: string;
   name: string;
   displayName?: string;
-  hostId: "local";
+  hostId: string;
   type: SessionKind;
   agentType: AgentType;
   tmuxName?: string;
@@ -59,7 +59,23 @@ export interface QuickLaunch {
   tags?: string[];
 }
 
+export interface LocalHostConfig {
+  id: string;
+  label: string;
+  type: "local";
+}
+
+export interface AgentHostConfig {
+  id: string;
+  label: string;
+  type: "agent";
+  baseUrl: string;
+}
+
+export type HostConfig = LocalHostConfig | AgentHostConfig;
+
 export interface AppConfig {
+  hosts: HostConfig[];
   projects: QuickLaunch[];
 }
 
@@ -93,7 +109,14 @@ function sessionRouteName(session: SessionSummary): string {
   return session.type === "pty" ? session.id.slice("pty:".length) : session.name;
 }
 
+function isRemoteTmuxSession(session: SessionSummary): boolean {
+  return session.type === "tmux" && session.hostId !== "local";
+}
+
 function tmuxSessionPath(session: SessionSummary): string {
+  if (isRemoteTmuxSession(session)) {
+    return `/api/hosts/${encodeURIComponent(session.hostId)}/sessions/tmux/${encodeURIComponent(session.name)}`;
+  }
   return `/api/sessions/tmux/${encodeURIComponent(session.name)}`;
 }
 
@@ -132,6 +155,12 @@ export function updateSessionMetadata(
     tags?: string[];
   }
 ): Promise<void> {
+  if (isRemoteTmuxSession(session)) {
+    return request(`${tmuxSessionPath(session)}/metadata`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  }
   const name = sessionRouteName(session);
   return request(`/api/sessions/${session.type}/${encodeURIComponent(name)}/metadata`, {
     method: "PATCH",
@@ -144,6 +173,9 @@ export function launchProject(index: number): Promise<SessionSummary | { id: str
 }
 
 export function killSession(session: SessionSummary): Promise<void> {
+  if (isRemoteTmuxSession(session)) {
+    return request(tmuxSessionPath(session), { method: "DELETE" });
+  }
   const name = sessionRouteName(session);
   return request(`/api/sessions/${session.type}/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
