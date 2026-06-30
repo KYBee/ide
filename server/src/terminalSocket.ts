@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import pty from "@homebridge/node-pty-prebuilt-multiarch";
 import type { Server } from "node:http";
 import { execFile } from "node:child_process";
-import { cleanProcessEnv, terminalProcessEnv } from "./env.js";
+import { cleanProcessEnv } from "./env.js";
 import { getPtyProcess } from "./ptyRegistry.js";
 import { isAuthorized } from "./auth.js";
 import { createAgentTerminalSocket, getAgentHost } from "./agentHosts.js";
@@ -19,7 +19,7 @@ function spawnTmuxAttach(name: string, cols: number, rows: number): pty.IPty {
     cols,
     rows,
     cwd: process.env.HOME,
-    env: terminalProcessEnv()
+    env: cleanProcessEnv()
   });
 }
 
