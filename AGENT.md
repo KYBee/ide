@@ -13,6 +13,13 @@ This project is a local terminal session control center for tmux-backed AI agent
 - Run `npm run smoke` when touching tmux, terminal attach, Electron launch, routing, or session lifecycle behavior.
 - Run `npm run validate` before commits that should be considered stable.
 
+## Git Flow
+
+- Do not commit directly to `main`.
+- Create a feature branch for every change, using `codex/<short-description>` for Codex-authored work.
+- Push the branch and open a pull request targeting `main` for review and merge.
+- Keep each PR focused on the requested change and include the validation commands that were run.
+
 ## Product Constraints
 
 - macOS and Linux are first-class targets.
