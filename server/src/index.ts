@@ -13,6 +13,7 @@ import {
 } from "./metadataStore.js";
 import { attachTerminalSocket } from "./terminalSocket.js";
 import { listCodexSkills } from "./skills.js";
+import { enrichTmuxSessionsWithStatus } from "./sessionStatus.js";
 import {
   captureTmuxPane,
   createTmuxWindow,
@@ -33,6 +34,7 @@ import {
   splitTmuxPane
 } from "./tmux.js";
 import { createPtySession, killPtySession, listPtySessions } from "./ptyRegistry.js";
+import { tmuxSessionNameSchema, tmuxWindowNameSchema, zodErrorMessage } from "./validation.js";
 
 const app = express();
 app.use(cors());
@@ -44,10 +46,21 @@ const createSessionSchema = z.object({
   agentType: z.enum(["codex", "claude", "gemini", "shell", "build", "custom"]).optional(),
   cwd: z.string().optional(),
   command: z.string().optional()
+}).superRefine((input, ctx) => {
+  if (input.type !== "tmux") return;
+  const result = tmuxSessionNameSchema.safeParse(input.name);
+  if (result.success) return;
+  for (const issue of result.error.issues) {
+    ctx.addIssue({ ...issue, path: ["name", ...issue.path] });
+  }
 });
 
-const renameSchema = z.object({
-  name: z.string().min(1)
+const renameSessionSchema = z.object({
+  name: tmuxSessionNameSchema
+});
+
+const renameWindowSchema = z.object({
+  name: tmuxWindowNameSchema
 });
 
 const metadataPatchSchema = z.object({
@@ -67,7 +80,7 @@ const inputTextSchema = z.object({
 });
 
 const createWindowSchema = z.object({
-  name: z.string().optional(),
+  name: tmuxWindowNameSchema.optional(),
   cwd: z.string().optional(),
   command: z.string().optional()
 });
@@ -107,17 +120,7 @@ app.get("/api/skills", (_req, res, next) => {
 app.get("/api/sessions", async (_req, res, next) => {
   try {
     const [tmuxSessions, ptySessions] = await Promise.all([listTmuxSessions(), listPtySessions()]);
-    const enrichedTmuxSessions = await Promise.all(
-      tmuxSessions.map(async (session) => {
-        const enriched = withSessionMetadata(session);
-        try {
-          const snapshot = await captureTmuxPane(session.name, 30);
-          return { ...enriched, status: detectSessionStatus(snapshot) };
-        } catch {
-          return enriched;
-        }
-      })
-    );
+    const enrichedTmuxSessions = await enrichTmuxSessionsWithStatus(tmuxSessions.map(withSessionMetadata));
     res.json([...enrichedTmuxSessions, ...ptySessions.map(withSessionMetadata)]);
   } catch (error) {
     next(error);
@@ -300,7 +303,7 @@ app.post("/api/sessions/tmux/:name/windows/:windowIndex/select", async (req, res
 app.patch("/api/sessions/tmux/:name/windows/:windowIndex", async (req, res, next) => {
   try {
     const windowIndex = windowIndexSchema.parse(req.params.windowIndex);
-    const input = renameSchema.parse(req.body);
+    const input = renameWindowSchema.parse(req.body);
     await renameTmuxWindow(req.params.name, windowIndex, input.name);
     res.status(204).send();
   } catch (error) {
@@ -371,7 +374,7 @@ app.delete("/api/sessions/:type/:name", async (req, res, next) => {
 
 app.patch("/api/sessions/tmux/:name", async (req, res, next) => {
   try {
-    const input = renameSchema.parse(req.body);
+    const input = renameSessionSchema.parse(req.body);
     await renameTmuxSession(req.params.name, input.name);
     renameSessionMetadata(`tmux:${req.params.name}`, `tmux:${input.name}`, input.name);
     res.status(204).send();
@@ -395,6 +398,11 @@ app.patch("/api/sessions/:type/:name/metadata", async (req, res, next) => {
 });
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (error instanceof z.ZodError) {
+    res.status(400).json({ error: zodErrorMessage(error) });
+    return;
+  }
+
   const message = error instanceof Error ? error.message : "unknown error";
   res.status(500).json({ error: message });
 });
