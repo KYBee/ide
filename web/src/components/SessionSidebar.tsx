@@ -9,9 +9,12 @@ interface SessionSidebarProps {
   selectedId?: string;
   startCwd: string;
   startAgentType: AgentType;
+  startHostId: string;
+  hosts: Array<{ id: string; label: string; type: "local" | "agent" }>;
   onStartCwdChange: (cwd: string) => void;
   onPickStartCwd: () => void;
   onStartAgentTypeChange: (agentType: AgentType) => void;
+  onStartHostChange: (hostId: string) => void;
   onSelect: (session: SessionSummary) => void;
   onRefresh: () => void;
   onNew: () => void;
@@ -76,9 +79,12 @@ export function SessionSidebar({
   selectedId,
   startCwd,
   startAgentType,
+  startHostId,
+  hosts,
   onStartCwdChange,
   onPickStartCwd,
   onStartAgentTypeChange,
+  onStartHostChange,
   onSelect,
   onRefresh,
   onNew
@@ -112,6 +118,16 @@ export function SessionSidebar({
 
       <div className="quick-start">
         <label>
+          Run on
+          <select value={startHostId} onChange={(event) => onStartHostChange(event.target.value)}>
+            {hosts.map((host) => (
+              <option key={host.id} value={host.id}>
+                {host.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Start agent
           <select value={startAgentType} onChange={(event) => onStartAgentTypeChange(event.target.value as AgentType)}>
             {LAUNCH_AGENT_TYPES.map((agentType) => (
@@ -127,10 +143,15 @@ export function SessionSidebar({
             <input
               value={startCwd}
               onChange={(event) => onStartCwdChange(event.target.value)}
-              placeholder="~ or ~/project"
+              placeholder={startHostId === "local" ? "~ or ~/project" : "Remote ~ or ~/project"}
               spellCheck={false}
             />
-            <button className="icon-button" onClick={onPickStartCwd} title="Choose directory">
+            <button
+              className="icon-button"
+              onClick={onPickStartCwd}
+              title={startHostId === "local" ? "Choose directory" : "Remote paths must be typed"}
+              disabled={startHostId !== "local"}
+            >
               <FolderOpen size={16} />
             </button>
           </div>

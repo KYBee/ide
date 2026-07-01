@@ -17,6 +17,7 @@ import { listCodexSkills } from "./skills.js";
 import { enrichTmuxSessionsWithStatus } from "./sessionStatus.js";
 import {
   captureAgentSnapshot,
+  createAgentSession,
   getAgentHost,
   listAgentHostSessions,
   listAgentTmuxWindows,
@@ -215,6 +216,26 @@ app.post("/api/sessions", async (req, res, next) => {
       lastActiveAt: session.lastActiveAt
     });
     res.status(201).json(session);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/hosts/:hostId/sessions", async (req, res, next) => {
+  try {
+    const host = getAgentHost(req.params.hostId);
+    if (!host) {
+      res.status(404).json({ error: "agent host not found" });
+      return;
+    }
+
+    const input = createSessionSchema.parse(req.body);
+    if (input.type !== "tmux") {
+      res.status(400).json({ error: "remote pty sessions are not supported" });
+      return;
+    }
+
+    res.status(201).json(await createAgentSession(host, input));
   } catch (error) {
     next(error);
   }

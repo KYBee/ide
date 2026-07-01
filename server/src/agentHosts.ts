@@ -3,13 +3,19 @@ import { loadConfig } from "./config.js";
 import { inferAgentType } from "./metadataStore.js";
 import { serverMode } from "./serverMode.js";
 import { detectSessionStatus } from "./tmux.js";
-import type { AgentHostConfig, AgentType, SessionStatus, SessionSummary, TmuxWindowsResponse } from "./types.js";
+import type { AgentHostConfig, AgentType, SessionKind, SessionStatus, SessionSummary, TmuxWindowsResponse } from "./types.js";
 
 interface RemoteSnapshot {
   sessionId: string;
   snapshot: string;
   status: SessionSummary["status"];
   capturedAt: string;
+}
+
+interface CreateRemoteSessionResult {
+  id?: string;
+  name?: string;
+  type?: SessionKind;
 }
 
 function agentHosts(): AgentHostConfig[] {
@@ -100,6 +106,18 @@ export async function listAgentHostSessions(): Promise<SessionSummary[]> {
   );
 
   return results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+}
+
+export async function createAgentSession(
+  host: AgentHostConfig,
+  input: { name: string; type: SessionKind; agentType?: AgentType; cwd?: string; command?: string }
+): Promise<{ id: string }> {
+  const result = await requestAgent<CreateRemoteSessionResult>(host, "/api/sessions", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+  const tmuxName = result.name ?? result.id?.replace(/^tmux:/, "") ?? input.name;
+  return { id: `tmux:${host.id}:${tmuxName}` };
 }
 
 async function refreshRemoteStatus(host: AgentHostConfig, session: SessionSummary): Promise<SessionSummary> {

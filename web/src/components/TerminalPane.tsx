@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import type { SessionSummary } from "../lib/api";
 
@@ -33,8 +34,10 @@ export function TerminalPane({ session }: TerminalPaneProps) {
     setMessage(`Attaching ${session.name}`);
 
     const terminal = new Terminal({
+      allowProposedApi: true,
+      rescaleOverlappingGlyphs: true,
       cursorBlink: true,
-      fontFamily: "JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontFamily: "\"D2Coding\", \"Apple SD Gothic Neo\", \"JetBrains Mono\", SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 13,
       lineHeight: 1.2,
       theme: {
@@ -62,6 +65,9 @@ export function TerminalPane({ session }: TerminalPaneProps) {
       }
     });
     const fitAddon = new FitAddon();
+    const unicode11Addon = new Unicode11Addon();
+    terminal.loadAddon(unicode11Addon);
+    terminal.unicode.activeVersion = "11";
     terminal.loadAddon(fitAddon);
     hostRef.current.replaceChildren();
     terminal.open(hostRef.current);
