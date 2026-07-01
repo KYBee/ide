@@ -10,6 +10,25 @@ const cwdSchema = z.preprocess(
   z.string().min(1)
 );
 
+const DEFAULT_HOSTS = [{ id: "local", label: "Local", type: "local" as const }];
+
+const hostIdSchema = z.string().min(1).regex(/^[a-zA-Z0-9_.-]+$/);
+
+const localHostSchema = z.object({
+  id: hostIdSchema.default("local"),
+  label: z.string().min(1).default("Local"),
+  type: z.literal("local")
+});
+
+const agentHostSchema = z.object({
+  id: hostIdSchema,
+  label: z.string().min(1),
+  type: z.literal("agent"),
+  baseUrl: z.string().url(),
+  tokenEnv: z.string().min(1).optional(),
+  token: z.string().min(1).optional()
+});
+
 const projectSchema = z.object({
   name: z.string().min(1),
   cwd: cwdSchema,
@@ -20,6 +39,7 @@ const projectSchema = z.object({
 });
 
 const configSchema = z.object({
+  hosts: z.array(z.discriminatedUnion("type", [localHostSchema, agentHostSchema])).default(DEFAULT_HOSTS),
   projects: z.array(projectSchema).default([])
 });
 
@@ -36,7 +56,7 @@ export function loadConfig(): AppConfig {
     : path.resolve(process.cwd(), "../config/projects.yaml");
 
   if (!fs.existsSync(configPath)) {
-    return { projects: [] };
+    return { hosts: DEFAULT_HOSTS, projects: [] };
   }
 
   const raw = fs.readFileSync(configPath, "utf8");
@@ -44,6 +64,16 @@ export function loadConfig(): AppConfig {
   const config = configSchema.parse(parsed);
 
   return {
+    hosts: config.hosts.map((host) => {
+      if (host.type === "local") return host;
+      return {
+        id: host.id,
+        label: host.label,
+        type: host.type,
+        baseUrl: host.baseUrl.replace(/\/+$/, ""),
+        tokenEnv: host.tokenEnv
+      };
+    }),
     projects: config.projects.map((project) => ({
       ...project,
       cwd: expandHome(project.cwd)

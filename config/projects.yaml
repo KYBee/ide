@@ -1,3 +1,8 @@
+hosts:
+  - id: local
+    label: Local
+    type: local
+
 projects:
   - name: Shell
     cwd: "~"
@@ -8,7 +13,7 @@ projects:
       - local
 
   - name: Codex Workspace
-    cwd: "~/Documents/advanced-terminal"
+    cwd: ~
     command: codex
     tmux: true
     agentType: codex
