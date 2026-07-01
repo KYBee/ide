@@ -39,9 +39,16 @@ export function RightPanel({
     setDisplayName(selected?.displayName ?? "");
   }, [selected?.id, selected?.displayName]);
 
+  const selectedHostSkills = selected?.hostId && selected.hostId !== "local"
+    ? skills.hosts?.[selected.hostId]?.codex
+    : undefined;
   const agentSkills = useMemo(
-    () => selected?.agentType === "codex" ? skills.codex : [],
-    [selected?.agentType, skills.codex]
+    () => {
+      if (!selected) return [];
+      if (selected.hostId !== "local") return selectedHostSkills ?? [];
+      return selected.agentType === "codex" ? skills.codex : [];
+    },
+    [selected, selectedHostSkills, skills.codex]
   );
   const selectedSkill = agentSkills.find((skill) => skill.id === selectedSkillId);
 
@@ -150,7 +157,11 @@ export function RightPanel({
             ))}
           </div>
         ) : (
-          <p className="muted">{selected ? agentLabel(selected.agentType) : "Agent"} tools are not registered yet.</p>
+          <p className="muted">
+            {selected?.hostId && selected.hostId !== "local"
+              ? `${selected.hostId} tools are not registered yet.`
+              : `${selected ? agentLabel(selected.agentType) : "Agent"} tools are not registered yet.`}
+          </p>
         )}
         {selectedSkill && (
           <div className="skill-detail">

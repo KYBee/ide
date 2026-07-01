@@ -89,3 +89,8 @@ export interface SkillSummary {
   path: string;
   builtin: boolean;
 }
+
+export interface SkillRegistry {
+  codex: SkillSummary[];
+  hosts?: Record<string, { codex: SkillSummary[] }>;
+}
