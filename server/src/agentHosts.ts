@@ -2,6 +2,7 @@ import { WebSocket } from "ws";
 import { loadConfig } from "./config.js";
 import { inferAgentType } from "./metadataStore.js";
 import { serverMode } from "./serverMode.js";
+import { detectSessionStatus } from "./tmux.js";
 import type { AgentHostConfig, AgentType, SessionStatus, SessionSummary, TmuxWindowsResponse } from "./types.js";
 
 interface RemoteSnapshot {
@@ -93,11 +94,27 @@ export async function listAgentHostSessions(): Promise<SessionSummary[]> {
   const results = await Promise.allSettled(
     hosts.map(async (host) => {
       const sessions = await requestAgent<SessionSummary[]>(host, "/api/sessions");
-      return sessions.filter((session) => session.type === "tmux").map((session) => toRemoteSession(host, session));
+      const remoteSessions = sessions.filter((session) => session.type === "tmux").map((session) => toRemoteSession(host, session));
+      return Promise.all(remoteSessions.map((session) => refreshRemoteStatus(host, session)));
     })
   );
 
   return results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+}
+
+async function refreshRemoteStatus(host: AgentHostConfig, session: SessionSummary): Promise<SessionSummary> {
+  try {
+    const snapshot = await requestAgent<RemoteSnapshot>(
+      host,
+      `/api/sessions/tmux/${encodeURIComponent(session.name)}/snapshot`
+    );
+    return {
+      ...session,
+      status: detectSessionStatus(snapshot.snapshot, session.agentType)
+    };
+  } catch {
+    return session;
+  }
 }
 
 export async function captureAgentSnapshot(host: AgentHostConfig, sessionName: string): Promise<RemoteSnapshot> {

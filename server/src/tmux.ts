@@ -442,10 +442,11 @@ function detectShellStatus(): SessionStatus {
 }
 
 function detectDefaultStatus(snapshot: string): SessionStatus {
-  const { text, lastLine } = snapshotTail(snapshot);
+  const { text, lastLine, previousLine } = snapshotTail(snapshot);
 
   if (/^(>|❯|›|[$#])\s+\S/.test(lastLine)) return "running";
   if (/^(>|❯|›|[$#])\s*$/.test(lastLine)) return "idle";
+  if (/^›(?:\s|$)/.test(previousLine) && /^gpt-[\w.-]+.*\s·\s/.test(lastLine)) return "idle";
   return detectCommonAttentionStatus(text, lastLine) ?? "unknown";
 }
 
