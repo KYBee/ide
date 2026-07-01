@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expandHome } from "./config.js";
-import { cleanProcessEnv } from "./env.js";
+import { cleanProcessEnv, TERMINAL_ENV_UNSET_KEYS } from "./env.js";
 import { inferAgentType } from "./metadataStore.js";
 import type { SessionStatus, SessionSummary, TmuxPaneSummary, TmuxWindowSummary } from "./types.js";
 
@@ -63,6 +63,14 @@ function runTmux(args: string[]) {
   return execFileAsync("tmux", args, { env: cleanProcessEnv() });
 }
 
+async function unsetNoColor(target: string): Promise<void> {
+  try {
+    await runTmux(["set-environment", "-u", "-t", target, "NO_COLOR"]);
+  } catch {
+    // The variable may not exist on older or freshly started tmux servers.
+  }
+}
+
 function tmuxLines(stdout: string): string[] {
   return stdout.split("\n").filter(Boolean);
 }
@@ -79,9 +87,24 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+function appendColorEnvironment(args: string[]): void {
+  args.push(
+    "-e",
+    "CLICOLOR=1",
+    "-e",
+    "COLORTERM=truecolor",
+    "-e",
+    "FORCE_COLOR=3"
+  );
+}
+
 export function buildTmuxShellCommand(command: string): string {
   const shell = shellPath();
-  const interactiveCommand = `${command}; exec ${shellQuote(shell)} -l`;
+  const colorEnvironment = [
+    `unset ${TERMINAL_ENV_UNSET_KEYS.map(shellQuote).join(" ")}`,
+    "export CLICOLOR=1 COLORTERM=truecolor FORCE_COLOR=3"
+  ].join("; ");
+  const interactiveCommand = `${colorEnvironment}; ${command}; exec ${shellQuote(shell)} -l`;
   return `exec ${shellQuote(shell)} -lic ${shellQuote(interactiveCommand)}`;
 }
 
@@ -199,13 +222,14 @@ export async function createTmuxSession(input: {
     "-e",
     "npm_config_prefix=",
     "-e",
-    "NPM_CONFIG_PREFIX=",
-    "-s",
-    input.name
+    "NPM_CONFIG_PREFIX="
   ];
+  appendColorEnvironment(args);
+  args.push("-s", input.name);
   if (input.cwd) args.push("-c", expandHome(input.cwd));
   if (input.command) args.push(buildTmuxShellCommand(input.command));
   await runTmux(args);
+  await unsetNoColor(targetSession(input.name));
 }
 
 export async function listTmuxWindows(name: string): Promise<TmuxWindowSummary[]> {
@@ -251,9 +275,11 @@ export async function createTmuxWindow(sessionName: string, input: {
   command?: string;
 } = {}): Promise<void> {
   const args = ["new-window", "-t", targetSession(sessionName)];
+  appendColorEnvironment(args);
   if (input.name) args.push("-n", input.name);
   if (input.cwd) args.push("-c", expandHome(input.cwd));
   if (input.command) args.push(buildTmuxShellCommand(input.command));
+  await unsetNoColor(targetSession(sessionName));
   await runTmux(args);
 }
 
@@ -280,8 +306,10 @@ export async function splitTmuxPane(sessionName: string, windowIndex: number, in
     "-t",
     targetWindow(sessionName, windowIndex)
   ];
+  appendColorEnvironment(args);
   if (input.cwd) args.push("-c", expandHome(input.cwd));
   if (input.command) args.push(buildTmuxShellCommand(input.command));
+  await unsetNoColor(targetSession(sessionName));
   await runTmux(args);
 }
 
