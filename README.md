@@ -50,6 +50,8 @@ npm install
 npm run dev:desktop
 ```
 
+macOS와 Linux에서 사용할 수 있습니다. macOS 전용 런처를 제외한 앱 본체는 clone한 디렉터리 기준으로 실행됩니다.
+
 브라우저에서 실행:
 
 ```bash
@@ -86,6 +88,8 @@ open "Session Control Launcher.app"
 ```
 
 현재 런처는 개발용 Electron 앱을 편하게 여는 용도입니다. 정식 패키징된 앱은 아닙니다.
+
+이 런처는 macOS 전용입니다. Linux에서는 `npm run dev` 또는 `npm run dev:desktop`을 사용하세요.
 
 ## 원격 Mac mini 연결
 
