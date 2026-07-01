@@ -424,8 +424,8 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #24313a;
-  color: #9bd1e5;
+  background: #1d3126;
+  color: #44c772;
 }
 
 .session-copy {
