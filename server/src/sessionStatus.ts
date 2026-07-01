@@ -1,4 +1,4 @@
-import { captureTmuxPane, detectSessionStatus } from "./tmux.js";
+import { aggregateSessionStatus, captureTmuxPaneSnapshots, detectSessionStatus } from "./tmux.js";
 import type { SessionSummary } from "./types.js";
 
 const DEFAULT_STATUS_SCAN_LIMIT = 50;
@@ -21,8 +21,11 @@ export async function enrichTmuxSessionsWithStatus(
       if (index >= limit) return session;
 
       try {
-        const snapshot = await captureTmuxPane(session.name, 30);
-        return { ...session, status: detectSessionStatus(snapshot) };
+        const paneSnapshots = await captureTmuxPaneSnapshots(session.name, 30);
+        const status = aggregateSessionStatus(
+          paneSnapshots.map((pane) => detectSessionStatus(pane.snapshot, pane.agentType))
+        );
+        return { ...session, status };
       } catch {
         return session;
       }
