@@ -24,6 +24,11 @@ function formatDate(value?: string) {
   }).format(new Date(value));
 }
 
+function displaySessionPath(selected: SessionSummary, path?: string): string {
+  if (!path) return "unknown";
+  return selected.hostId !== "local" ? `Remote ${path}` : path;
+}
+
 export function RightPanel({
   selected,
   skills,
@@ -78,7 +83,7 @@ export function RightPanel({
             <span>Host</span>
             <strong>{selected.hostId}</strong>
             <span>CWD</span>
-            <strong title={selected.cwd}>{selected.cwd ?? "unknown"}</strong>
+            <strong title={displaySessionPath(selected, selected.cwd)}>{displaySessionPath(selected, selected.cwd)}</strong>
             <span>Command</span>
             <strong title={selected.command}>{selected.command ?? "unknown"}</strong>
             <span>Status</span>
@@ -90,7 +95,9 @@ export function RightPanel({
             <span>Panes</span>
             <strong>{selected.paneCount ?? "unknown"}</strong>
             <span>Pane Path</span>
-            <strong title={selected.activePanePath}>{selected.activePanePath ?? "unknown"}</strong>
+            <strong title={displaySessionPath(selected, selected.activePanePath)}>
+              {displaySessionPath(selected, selected.activePanePath)}
+            </strong>
             <span>Pane Cmd</span>
             <strong title={selected.activePaneCommand}>{selected.activePaneCommand ?? "unknown"}</strong>
             <span>Created</span>

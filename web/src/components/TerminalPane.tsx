@@ -106,8 +106,9 @@ export function TerminalPane({ session }: TerminalPaneProps) {
         window.setTimeout(sendResize, 50);
         window.setTimeout(sendResize, 250);
       });
-      socket.addEventListener("message", (event) => {
-        const message = JSON.parse(event.data);
+      socket.addEventListener("message", async (event) => {
+        const payload = typeof event.data === "string" ? event.data : await event.data.text();
+        const message = JSON.parse(payload);
         if (message.type === "data") terminal.write(message.data);
         if (message.type === "exit") {
           shouldReconnect = false;

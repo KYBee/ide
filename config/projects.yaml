@@ -2,6 +2,11 @@ hosts:
   - id: local
     label: Local
     type: local
+  - id: macmini
+    label: Mac mini
+    type: agent
+    baseUrl: http://100.124.152.52:3635
+    tokenEnv: SESSION_CONTROL_MACMINI_TOKEN
 
 projects:
   - name: Shell
