@@ -12,10 +12,11 @@ function timestampNamePrefix(agentType: AgentType): string {
   return `${agentType}-${stamp}-${suffix}`;
 }
 
-export function buildSessionLaunchInput(agentType: AgentType, cwd?: string) {
+export function buildSessionLaunchInput(agentType: AgentType, cwd?: string, hostId = "local") {
   return {
     name: timestampNamePrefix(agentType),
     type: "tmux" as const,
+    hostId,
     agentType,
     cwd: cwd || undefined,
     command: agentCommand(agentType)

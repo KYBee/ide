@@ -6,7 +6,7 @@ export interface SessionSummary {
   id: string;
   name: string;
   displayName?: string;
-  hostId: "local";
+  hostId: string;
   type: SessionKind;
   agentType: AgentType;
   tmuxName?: string;
@@ -45,6 +45,11 @@ export interface TmuxWindowSummary {
   panes: TmuxPaneSummary[];
 }
 
+export interface TmuxWindowsResponse {
+  sessionId: string;
+  windows: TmuxWindowSummary[];
+}
+
 export interface QuickLaunch {
   name: string;
   cwd: string;
@@ -54,7 +59,25 @@ export interface QuickLaunch {
   tags?: string[];
 }
 
+export interface LocalHostConfig {
+  id: string;
+  label: string;
+  type: "local";
+}
+
+export interface AgentHostConfig {
+  id: string;
+  label: string;
+  type: "agent";
+  baseUrl: string;
+  tokenEnv?: string;
+  token?: string;
+}
+
+export type HostConfig = LocalHostConfig | AgentHostConfig;
+
 export interface AppConfig {
+  hosts: HostConfig[];
   projects: QuickLaunch[];
 }
 
@@ -65,4 +88,11 @@ export interface SkillSummary {
   source: "codex";
   path: string;
   builtin: boolean;
+}
+
+export type HostSkillRegistry = Record<string, { codex: SkillSummary[] }>;
+
+export interface SkillRegistry {
+  codex: SkillSummary[];
+  hosts?: HostSkillRegistry;
 }

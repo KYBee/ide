@@ -6,7 +6,7 @@ export interface SessionSummary {
   id: string;
   name: string;
   displayName?: string;
-  hostId: "local";
+  hostId: string;
   type: SessionKind;
   agentType: AgentType;
   tmuxName?: string;
@@ -59,8 +59,35 @@ export interface QuickLaunch {
   tags?: string[];
 }
 
+export interface LocalHostConfig {
+  id: string;
+  label: string;
+  type: "local";
+}
+
+export interface AgentHostConfig {
+  id: string;
+  label: string;
+  type: "agent";
+  baseUrl: string;
+}
+
+export type HostConfig = LocalHostConfig | AgentHostConfig;
+
 export interface AppConfig {
+  hosts: HostConfig[];
   projects: QuickLaunch[];
+}
+
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+}
+
+export interface DirectoryListing {
+  path: string;
+  parent?: string;
+  entries: DirectoryEntry[];
 }
 
 export interface SkillSummary {
@@ -74,6 +101,7 @@ export interface SkillSummary {
 
 export interface SkillRegistry {
   codex: SkillSummary[];
+  hosts?: Record<string, { codex: SkillSummary[] }>;
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -93,7 +121,14 @@ function sessionRouteName(session: SessionSummary): string {
   return session.type === "pty" ? session.id.slice("pty:".length) : session.name;
 }
 
+function isRemoteTmuxSession(session: SessionSummary): boolean {
+  return session.type === "tmux" && session.hostId !== "local";
+}
+
 function tmuxSessionPath(session: SessionSummary): string {
+  if (isRemoteTmuxSession(session)) {
+    return `/api/hosts/${encodeURIComponent(session.hostId)}/sessions/tmux/${encodeURIComponent(session.name)}`;
+  }
   return `/api/sessions/tmux/${encodeURIComponent(session.name)}`;
 }
 
@@ -109,16 +144,29 @@ export function loadSkills(): Promise<SkillRegistry> {
   return request("/api/skills");
 }
 
+export function listDirectories(hostId: string, path: string): Promise<DirectoryListing> {
+  const params = new URLSearchParams({ path });
+  const route = hostId === "local"
+    ? `/api/filesystem/directories?${params.toString()}`
+    : `/api/hosts/${encodeURIComponent(hostId)}/filesystem/directories?${params.toString()}`;
+  return request(route);
+}
+
 export function createSession(input: {
   name: string;
   type: SessionKind;
+  hostId?: string;
   agentType?: AgentType;
   cwd?: string;
   command?: string;
 }): Promise<SessionSummary | { id: string }> {
-  return request("/api/sessions", {
+  const { hostId, ...sessionInput } = input;
+  const path = hostId && hostId !== "local"
+    ? `/api/hosts/${encodeURIComponent(hostId)}/sessions`
+    : "/api/sessions";
+  return request(path, {
     method: "POST",
-    body: JSON.stringify(input)
+    body: JSON.stringify(sessionInput)
   });
 }
 
@@ -132,6 +180,12 @@ export function updateSessionMetadata(
     tags?: string[];
   }
 ): Promise<void> {
+  if (isRemoteTmuxSession(session)) {
+    return request(`${tmuxSessionPath(session)}/metadata`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  }
   const name = sessionRouteName(session);
   return request(`/api/sessions/${session.type}/${encodeURIComponent(name)}/metadata`, {
     method: "PATCH",
@@ -144,6 +198,9 @@ export function launchProject(index: number): Promise<SessionSummary | { id: str
 }
 
 export function killSession(session: SessionSummary): Promise<void> {
+  if (isRemoteTmuxSession(session)) {
+    return request(tmuxSessionPath(session), { method: "DELETE" });
+  }
   const name = sessionRouteName(session);
   return request(`/api/sessions/${session.type}/${encodeURIComponent(name)}`, { method: "DELETE" });
 }

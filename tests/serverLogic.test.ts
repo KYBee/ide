@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../server/src/config";
 import { enrichTmuxSessionsWithStatus, statusScanLimit } from "../server/src/sessionStatus";
+import { listAgentHosts } from "../server/src/agentHosts";
 import { inferAgentType } from "../server/src/metadataStore";
 import { aggregateSessionStatus, buildTmuxShellCommand, detectSessionStatus, isInternalSessionControlTmuxSession } from "../server/src/tmux";
 import { tmuxSessionNameSchema, tmuxWindowNameSchema, zodErrorMessage } from "../server/src/validation";
@@ -50,6 +51,21 @@ test("detectSessionStatus uses agent-specific adapters", () => {
   assert.equal(detectSessionStatus("unknown tui footer", "custom"), "unknown");
 });
 
+test("detectSessionStatus recognizes command approval prompts", () => {
+  assert.equal(detectSessionStatus([
+    "Would you like to run the following command?",
+    "",
+    "Reason: Restart the server",
+    "",
+    "$ pkill -f 'node server/server.js' || true",
+    "",
+    "› 1. Yes, proceed (y)",
+    "  2. No, and tell Codex what to do differently (esc)",
+    "",
+    "Press enter to confirm or esc to cancel"
+  ].join("\n"), "custom"), "needs_approval");
+});
+
 test("aggregateSessionStatus only reports idle when every pane is idle or completed", () => {
   assert.equal(aggregateSessionStatus(["idle", "idle"]), "idle");
   assert.equal(aggregateSessionStatus(["idle", "completed"]), "idle");
@@ -57,6 +73,28 @@ test("aggregateSessionStatus only reports idle when every pane is idle or comple
   assert.equal(aggregateSessionStatus(["idle", "waiting_input"]), "waiting_input");
   assert.equal(aggregateSessionStatus(["running", "needs_approval"]), "needs_approval");
   assert.equal(aggregateSessionStatus(["error", "needs_approval"]), "error");
+});
+
+test("detectSessionStatus ignores stale errors above the current prompt", () => {
+  assert.equal(detectSessionStatus([
+    "GitHub API error 404",
+    "error connecting to api.github.com",
+    "────────────────",
+    "• 됐습니다.",
+    "",
+    "  커밋:",
+    "  83fd459 fix terminal color inheritance",
+    "",
+    "  PR:",
+    "  https://github.com/KYBee/ide/pull/4",
+    "",
+    "  검증:",
+    "  npm run build 통과했습니다.",
+    "",
+    "─ Worked for 11m 26s ─",
+    "",
+    "› Write tests for @filename"
+  ].join("\n")), "running");
 });
 
 test("internal Session Control runtime tmux sessions are hidden from users", () => {
@@ -176,6 +214,95 @@ test("config treats yaml tilde cwd as the home directory", () => {
   } finally {
     if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
     else process.env.SESSION_CONTROL_CONFIG = previousConfig;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("config resolves relative override paths from the project root when running in a workspace", () => {
+  const previousConfig = process.env.SESSION_CONTROL_CONFIG;
+  const previousCwd = process.cwd();
+  const directory = mkdtempSync(join(tmpdir(), "session-control-config-"));
+  const serverDirectory = join(directory, "server");
+  const configDirectory = join(directory, ".session-control");
+  const configPath = join(configDirectory, "projects.local.yaml");
+
+  try {
+    mkdirSync(serverDirectory);
+    mkdirSync(configDirectory);
+    process.chdir(serverDirectory);
+    process.env.SESSION_CONTROL_CONFIG = ".session-control/projects.local.yaml";
+    writeFileSync(configPath, [
+      "hosts:",
+      "  - id: local",
+      "    label: Local",
+      "    type: local",
+      "  - id: remote-dev",
+      "    label: Remote Dev",
+      "    type: agent",
+      "    baseUrl: http://100.64.0.20:3635",
+      "projects: []",
+      ""
+    ].join("\n"));
+
+    const config = loadConfig();
+    assert.equal(config.hosts.length, 2);
+    assert.equal(config.hosts[1].id, "remote-dev");
+  } finally {
+    process.chdir(previousCwd);
+    if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
+    else process.env.SESSION_CONTROL_CONFIG = previousConfig;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("config supports local and remote agent hosts without exposing token values", () => {
+  const previousConfig = process.env.SESSION_CONTROL_CONFIG;
+  const previousToken = process.env.SESSION_CONTROL_MACMINI_TOKEN;
+  const previousMode = process.env.SESSION_CONTROL_MODE;
+  const directory = mkdtempSync(join(tmpdir(), "session-control-config-"));
+  const configPath = join(directory, "projects.yaml");
+
+  try {
+    process.env.SESSION_CONTROL_CONFIG = configPath;
+    process.env.SESSION_CONTROL_MACMINI_TOKEN = "secret-token";
+    delete process.env.SESSION_CONTROL_MODE;
+    writeFileSync(configPath, [
+      "hosts:",
+      "  - id: local",
+      "    label: Local",
+      "    type: local",
+      "  - id: macmini",
+      "    label: Mac mini",
+      "    type: agent",
+      "    baseUrl: http://100.64.0.10:3635/",
+      "    tokenEnv: SESSION_CONTROL_MACMINI_TOKEN",
+      "projects: []",
+      ""
+    ].join("\n"));
+
+    const config = loadConfig();
+    assert.deepEqual(config.hosts, [
+      { id: "local", label: "Local", type: "local" },
+      {
+        id: "macmini",
+        label: "Mac mini",
+        type: "agent",
+        baseUrl: "http://100.64.0.10:3635",
+        tokenEnv: "SESSION_CONTROL_MACMINI_TOKEN"
+      }
+    ]);
+    assert.equal("token" in config.hosts[1], false);
+    assert.equal(listAgentHosts().length, 1);
+
+    process.env.SESSION_CONTROL_MODE = "agent";
+    assert.equal(listAgentHosts().length, 0);
+  } finally {
+    if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
+    else process.env.SESSION_CONTROL_CONFIG = previousConfig;
+    if (previousToken === undefined) delete process.env.SESSION_CONTROL_MACMINI_TOKEN;
+    else process.env.SESSION_CONTROL_MACMINI_TOKEN = previousToken;
+    if (previousMode === undefined) delete process.env.SESSION_CONTROL_MODE;
+    else process.env.SESSION_CONTROL_MODE = previousMode;
     rmSync(directory, { recursive: true, force: true });
   }
 });

@@ -1,9 +1,11 @@
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import pty from "@homebridge/node-pty-prebuilt-multiarch";
 import type { Server } from "node:http";
 import { execFile } from "node:child_process";
 import { cleanProcessEnv } from "./env.js";
 import { getPtyProcess } from "./ptyRegistry.js";
+import { isAuthorized } from "./auth.js";
+import { createAgentTerminalSocket, getAgentHost } from "./agentHosts.js";
 
 function parseSessionId(url?: string): string | undefined {
   if (!url) return undefined;
@@ -29,13 +31,73 @@ function refreshTmuxClient(name: string, cols: number, rows: number): void {
   });
 }
 
+function parseRemoteTmuxSessionId(sessionId: string): { hostId: string; name: string } | undefined {
+  const match = /^tmux:([^:]+):(.+)$/.exec(sessionId);
+  if (!match) return undefined;
+  return { hostId: match[1], name: match[2] };
+}
+
+function bridgeRemoteTerminal(socket: WebSocket, remoteSocket: WebSocket): void {
+  const pendingMessages: string[] = [];
+
+  socket.on("message", (raw) => {
+    const message = raw.toString();
+    if (remoteSocket.readyState === WebSocket.OPEN) {
+      remoteSocket.send(message);
+      return;
+    }
+    pendingMessages.push(message);
+  });
+
+  remoteSocket.on("open", () => {
+    for (const message of pendingMessages.splice(0)) remoteSocket.send(message);
+  });
+
+  remoteSocket.on("message", (raw) => {
+    if (socket.readyState === WebSocket.OPEN) socket.send(raw.toString());
+  });
+
+  remoteSocket.on("close", () => {
+    if (socket.readyState === WebSocket.OPEN) socket.close();
+  });
+
+  remoteSocket.on("error", () => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "error", message: "remote terminal connection failed" }));
+      socket.close(1011, "remote terminal connection failed");
+    }
+  });
+
+  socket.on("close", () => {
+    remoteSocket.close();
+  });
+}
+
 export function attachTerminalSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: "/term" });
 
   wss.on("connection", (socket, request) => {
+    if (!isAuthorized(request.headers)) {
+      socket.close(1008, "unauthorized");
+      return;
+    }
+
     const sessionId = parseSessionId(request.url);
     if (!sessionId) {
       socket.close(1008, "missing session id");
+      return;
+    }
+
+    const remoteTmuxSession = parseRemoteTmuxSessionId(sessionId);
+    if (remoteTmuxSession) {
+      const host = getAgentHost(remoteTmuxSession.hostId);
+      if (!host) {
+        socket.close(1008, "agent host not found");
+        return;
+      }
+
+      const remoteSocket = createAgentTerminalSocket(host, remoteTmuxSession.name);
+      bridgeRemoteTerminal(socket, remoteSocket);
       return;
     }
 

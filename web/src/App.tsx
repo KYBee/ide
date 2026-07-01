@@ -5,6 +5,7 @@ import {
   insertTmuxText,
   killSession,
   killTmuxWindow,
+  loadConfig,
   listSessions,
   listTmuxWindows,
   loadSkills,
@@ -13,7 +14,7 @@ import {
   splitTmuxPane,
   updateSessionMetadata
 } from "./lib/api";
-import type { AgentType, SessionSummary, SkillRegistry, SkillSummary, TmuxWindowSummary } from "./lib/api";
+import type { AgentType, HostConfig, SessionSummary, SkillRegistry, SkillSummary, TmuxWindowSummary } from "./lib/api";
 import { RightPanel } from "./components/RightPanel";
 import { SessionSidebar } from "./components/SessionSidebar";
 import { TerminalPane } from "./components/TerminalPane";
@@ -26,12 +27,16 @@ import {
   getActiveTmuxWindow
 } from "./lib/sessionLaunch";
 
+type LaunchHost = { id: string; label: string; type: "local" | "agent" };
+
 export default function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [skills, setSkills] = useState<SkillRegistry>({ codex: [] });
   const [selectedId, setSelectedId] = useState<string>();
   const [startCwd, setStartCwd] = useState("~");
   const [startAgentType, setStartAgentType] = useState<AgentType>("codex");
+  const [startHostId, setStartHostId] = useState("local");
+  const [hosts, setHosts] = useState<HostConfig[]>([{ id: "local", label: "Local", type: "local" }]);
   const [error, setError] = useState<string>();
   const [tmuxWindows, setTmuxWindows] = useState<TmuxWindowSummary[]>([]);
   const [tmuxLaunchAgentType, setTmuxLaunchAgentType] = useState<AgentType>("shell");
@@ -42,10 +47,35 @@ export default function App() {
     () => sessions.find((session) => session.id === selectedId),
     [selectedId, sessions]
   );
+  const launchHosts = useMemo<LaunchHost[]>(() => {
+    const nextHosts = new Map<string, LaunchHost>(
+      hosts.map((host) => [host.id, { id: host.id, label: host.label, type: host.type }])
+    );
+    for (const session of sessions) {
+      if (session.hostId === "local" || nextHosts.has(session.hostId)) continue;
+      nextHosts.set(session.hostId, {
+        id: session.hostId,
+        label: `Remote ${session.hostId}`,
+        type: "agent"
+      });
+    }
+    return Array.from(nextHosts.values());
+  }, [hosts, sessions]);
+
+  const applyHosts = useCallback((nextHosts: HostConfig[]) => {
+    setHosts(nextHosts);
+    setStartHostId((currentHostId) =>
+      nextHosts.some((host) => host.id === currentHostId) ? currentHostId : "local"
+    );
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
-      const nextSessions = await listSessions();
+      const [nextSessions, config] = await Promise.all([
+        listSessions(),
+        loadConfig().catch(() => undefined)
+      ]);
+      if (config) applyHosts(config.hosts);
       setSessions(nextSessions);
       setError(undefined);
       setSelectedId((currentId) => {
@@ -55,7 +85,7 @@ export default function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions");
     }
-  }, []);
+  }, [applyHosts]);
 
   useEffect(() => {
     refresh();
@@ -64,10 +94,13 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => {
+    loadConfig().then((config) => applyHosts(config.hosts)).catch(() => {
+      // Keep the built-in local host if config reload fails during development.
+    });
     loadSkills().then(setSkills).catch(() => {
       // Keep the last successful skill registry if the local dev server briefly restarts.
     });
-  }, []);
+  }, [applyHosts]);
 
   const refreshTmuxWindows = useCallback(async (session = selected) => {
     if (!session || session.type !== "tmux") {
@@ -100,7 +133,7 @@ export default function App() {
 
   async function handleStartSession() {
     try {
-      const input = buildSessionLaunchInput(startAgentType, startCwd);
+      const input = buildSessionLaunchInput(startAgentType, startCwd, startHostId);
       const result = await createSession(input);
       await refresh();
       setSelectedId(result.id);
@@ -237,9 +270,12 @@ export default function App() {
         selectedId={selectedId}
         startCwd={startCwd}
         startAgentType={startAgentType}
+        startHostId={startHostId}
+        hosts={launchHosts}
         onStartCwdChange={setStartCwd}
         onPickStartCwd={handlePickStartCwd}
         onStartAgentTypeChange={setStartAgentType}
+        onStartHostChange={setStartHostId}
         onSelect={handleSelectSession}
         onRefresh={refresh}
         onNew={handleStartSession}
