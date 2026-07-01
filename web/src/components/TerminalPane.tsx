@@ -34,8 +34,10 @@ export function TerminalPane({ session }: TerminalPaneProps) {
     setMessage(`Attaching ${session.name}`);
 
     const terminal = new Terminal({
+      allowProposedApi: true,
+      rescaleOverlappingGlyphs: true,
       cursorBlink: true,
-      fontFamily: "JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, Apple SD Gothic Neo, Noto Sans Mono CJK KR, monospace",
+      fontFamily: "\"D2Coding\", \"Apple SD Gothic Neo\", \"JetBrains Mono\", SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 13,
       lineHeight: 1.2,
       theme: {
