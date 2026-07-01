@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import type { SessionSummary } from "../lib/api";
+import { PANEL_RESIZE_END_EVENT } from "../hooks/usePanelWidths";
 
 interface TerminalPaneProps {
   session?: SessionSummary;
@@ -77,19 +78,38 @@ export function TerminalPane({ session }: TerminalPaneProps) {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     let disposed = false;
     let resizeFrame: number | undefined;
-    const sendResize = () => {
+    let resizeDebounceTimer: number | undefined;
+    let lastSentSize: { cols: number; rows: number } | undefined;
+    const fitTerminal = () => {
       if (disposed) return;
       fitAddon.fit();
+      return {
+        cols: Math.max(terminal.cols, 40),
+        rows: Math.max(terminal.rows, 10)
+      };
+    };
+    const sendResize = () => {
+      const size = fitTerminal();
+      if (!size) return;
+      if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows) return;
+
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN) {
-        const cols = Math.max(terminal.cols, 40);
-        const rows = Math.max(terminal.rows, 10);
-        socket.send(JSON.stringify({ type: "resize", cols, rows }));
+        lastSentSize = size;
+        socket.send(JSON.stringify({ type: "resize", cols: size.cols, rows: size.rows }));
       }
     };
-    const scheduleResize = () => {
+    const scheduleResize = (delay = 80) => {
       if (resizeFrame !== undefined) window.cancelAnimationFrame(resizeFrame);
-      resizeFrame = window.requestAnimationFrame(sendResize);
+      if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
+      resizeFrame = window.requestAnimationFrame(() => {
+        fitTerminal();
+        if (document.body.classList.contains("is-resizing-panels")) return;
+        resizeDebounceTimer = window.setTimeout(sendResize, delay);
+      });
+    };
+    const sendResizeAfterPanelDrag = () => {
+      scheduleResize(0);
     };
 
     const openSocket = () => {
@@ -154,14 +174,17 @@ export function TerminalPane({ session }: TerminalPaneProps) {
       }
     });
 
-    const resizeObserver = new ResizeObserver(scheduleResize);
+    const resizeObserver = new ResizeObserver(() => scheduleResize());
     resizeObserver.observe(hostRef.current);
+    window.addEventListener(PANEL_RESIZE_END_EVENT, sendResizeAfterPanelDrag);
 
     return () => {
       disposed = true;
       if (resizeFrame !== undefined) window.cancelAnimationFrame(resizeFrame);
+      if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
       window.clearTimeout(reconnectTimerRef.current);
       resizeObserver.disconnect();
+      window.removeEventListener(PANEL_RESIZE_END_EVENT, sendResizeAfterPanelDrag);
       inputDisposable.dispose();
       socketRef.current?.close();
       socketRef.current = null;
