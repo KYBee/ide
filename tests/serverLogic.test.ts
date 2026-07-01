@@ -30,6 +30,28 @@ test("detectSessionStatus keeps attention states distinguishable", () => {
   assert.equal(detectSessionStatus("working on files"), "running");
 });
 
+test("detectSessionStatus ignores stale errors above the current prompt", () => {
+  assert.equal(detectSessionStatus([
+    "GitHub API error 404",
+    "error connecting to api.github.com",
+    "────────────────",
+    "• 됐습니다.",
+    "",
+    "  커밋:",
+    "  83fd459 fix terminal color inheritance",
+    "",
+    "  PR:",
+    "  https://github.com/KYBee/ide/pull/4",
+    "",
+    "  검증:",
+    "  npm run build 통과했습니다.",
+    "",
+    "─ Worked for 11m 26s ─",
+    "",
+    "› Write tests for @filename"
+  ].join("\n")), "running");
+});
+
 test("internal Session Control runtime tmux sessions are hidden from users", () => {
   assert.equal(isInternalSessionControlTmuxSession("session-control-server"), true);
   assert.equal(isInternalSessionControlTmuxSession("session-control-web"), true);

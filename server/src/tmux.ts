@@ -342,8 +342,16 @@ export async function sendLiteralToTmuxSession(name: string, text: string): Prom
   await runTmux(["send-keys", "-l", "-t", targetActivePane(name), text]);
 }
 
+function statusDetectionText(snapshot: string): string {
+  const lines = snapshot
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.slice(-8).join("\n");
+}
+
 export function detectSessionStatus(snapshot: string): SessionStatus {
-  const text = snapshot.toLowerCase();
+  const text = statusDetectionText(snapshot);
   if (/(error|failed|exception|traceback|panic)/i.test(text)) return "error";
   if (/(approve|approval|permission|allow\?|deny\?)/i.test(text)) return "needs_approval";
   if (/(waiting for input|input required|press enter|continue\?|yes\/no|y\/n)/i.test(text)) return "waiting_input";
