@@ -43,6 +43,7 @@ import {
   splitTmuxPane
 } from "./tmux.js";
 import { createPtySession, killPtySession, listPtySessions } from "./ptyRegistry.js";
+import { listDirectories } from "./filesystem.js";
 import { tmuxSessionNameSchema, tmuxWindowNameSchema, zodErrorMessage } from "./validation.js";
 import { requireAgentToken } from "./auth.js";
 
@@ -152,6 +153,31 @@ app.get("/api/config", (_req, res) => {
 app.get("/api/skills", (_req, res, next) => {
   try {
     res.json({ codex: listCodexSkills() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/filesystem/directories", async (req, res, next) => {
+  try {
+    const requestedPath = typeof req.query.path === "string" ? req.query.path : undefined;
+    res.json(await listDirectories(requestedPath));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hosts/:hostId/filesystem/directories", async (req, res, next) => {
+  try {
+    const host = getAgentHost(req.params.hostId);
+    if (!host) {
+      res.status(404).json({ error: "agent host not found" });
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (typeof req.query.path === "string") params.set("path", req.query.path);
+    res.json(await requestAgent(host, `/api/filesystem/directories?${params.toString()}`));
   } catch (error) {
     next(error);
   }
