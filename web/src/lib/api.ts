@@ -135,13 +135,18 @@ export function loadSkills(): Promise<SkillRegistry> {
 export function createSession(input: {
   name: string;
   type: SessionKind;
+  hostId?: string;
   agentType?: AgentType;
   cwd?: string;
   command?: string;
 }): Promise<SessionSummary | { id: string }> {
-  return request("/api/sessions", {
+  const { hostId, ...sessionInput } = input;
+  const path = hostId && hostId !== "local"
+    ? `/api/hosts/${encodeURIComponent(hostId)}/sessions`
+    : "/api/sessions";
+  return request(path, {
     method: "POST",
-    body: JSON.stringify(input)
+    body: JSON.stringify(sessionInput)
   });
 }
 

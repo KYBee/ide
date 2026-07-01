@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../server/src/config";
@@ -212,6 +212,43 @@ test("config treats yaml tilde cwd as the home directory", () => {
     const config = loadConfig();
     assert.equal(config.projects[0].cwd, homedir());
   } finally {
+    if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
+    else process.env.SESSION_CONTROL_CONFIG = previousConfig;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("config resolves relative override paths from the project root when running in a workspace", () => {
+  const previousConfig = process.env.SESSION_CONTROL_CONFIG;
+  const previousCwd = process.cwd();
+  const directory = mkdtempSync(join(tmpdir(), "session-control-config-"));
+  const serverDirectory = join(directory, "server");
+  const configDirectory = join(directory, ".session-control");
+  const configPath = join(configDirectory, "projects.local.yaml");
+
+  try {
+    mkdirSync(serverDirectory);
+    mkdirSync(configDirectory);
+    process.chdir(serverDirectory);
+    process.env.SESSION_CONTROL_CONFIG = ".session-control/projects.local.yaml";
+    writeFileSync(configPath, [
+      "hosts:",
+      "  - id: local",
+      "    label: Local",
+      "    type: local",
+      "  - id: remote-dev",
+      "    label: Remote Dev",
+      "    type: agent",
+      "    baseUrl: http://100.64.0.20:3635",
+      "projects: []",
+      ""
+    ].join("\n"));
+
+    const config = loadConfig();
+    assert.equal(config.hosts.length, 2);
+    assert.equal(config.hosts[1].id, "remote-dev");
+  } finally {
+    process.chdir(previousCwd);
     if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
     else process.env.SESSION_CONTROL_CONFIG = previousConfig;
     rmSync(directory, { recursive: true, force: true });

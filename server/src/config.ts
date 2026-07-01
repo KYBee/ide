@@ -49,13 +49,23 @@ export function expandHome(value: string): string {
   return value;
 }
 
+function configPathCandidates(configuredPath: string): string[] {
+  const expanded = expandHome(configuredPath);
+  if (path.isAbsolute(expanded)) return [expanded];
+  return [
+    path.resolve(process.cwd(), expanded),
+    path.resolve(process.cwd(), "..", expanded)
+  ];
+}
+
 export function loadConfig(): AppConfig {
   const configuredPath = process.env.SESSION_CONTROL_CONFIG;
-  const configPath = configuredPath
-    ? expandHome(configuredPath)
-    : path.resolve(process.cwd(), "../config/projects.yaml");
+  const configPaths = configuredPath
+    ? configPathCandidates(configuredPath)
+    : [path.resolve(process.cwd(), "../config/projects.yaml")];
+  const configPath = configPaths.find((candidate) => fs.existsSync(candidate));
 
-  if (!fs.existsSync(configPath)) {
+  if (!configPath) {
     return { hosts: DEFAULT_HOSTS, projects: [] };
   }
 

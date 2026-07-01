@@ -14,6 +14,8 @@ export function cleanProcessEnv(): NodeJS.ProcessEnv {
   delete env.npm_config_prefix;
   delete env.NPM_CONFIG_PREFIX;
   for (const key of TERMINAL_ENV_UNSET_KEYS) delete env[key];
+  env.LANG ||= "en_US.UTF-8";
+  env.LC_CTYPE ||= env.LANG;
   return env;
 }
 
