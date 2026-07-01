@@ -58,12 +58,14 @@ test("agent command mapping stays stable for launch controls", () => {
 test("buildSessionLaunchInput creates persistent tmux sessions with normalized cwd", () => {
   const codexInput = buildSessionLaunchInput("codex", "/workspace");
   assert.equal(codexInput.type, "tmux");
+  assert.equal(codexInput.hostId, "local");
   assert.equal(codexInput.agentType, "codex");
   assert.equal(codexInput.cwd, "/workspace");
   assert.equal(codexInput.command, "codex");
   assert.match(codexInput.name, /^codex-\d{8}-\d{6}-\d{3}$/);
 
-  const shellInput = buildSessionLaunchInput("shell", "");
+  const shellInput = buildSessionLaunchInput("shell", "", "macmini");
+  assert.equal(shellInput.hostId, "macmini");
   assert.equal(shellInput.cwd, undefined);
   assert.equal(shellInput.command, undefined);
 });

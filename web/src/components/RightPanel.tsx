@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Save, Send, X, Tag } from "lucide-react";
 import type { SessionSummary, SkillRegistry, SkillSummary } from "../lib/api";
 import { agentLabel } from "../lib/agents";
+import { displaySessionPath, fullSessionPathTitle } from "../lib/sessionDisplay";
 
 interface RightPanelProps {
   selected?: SessionSummary;
@@ -38,9 +39,16 @@ export function RightPanel({
     setDisplayName(selected?.displayName ?? "");
   }, [selected?.id, selected?.displayName]);
 
+  const selectedHostSkills = selected?.hostId && selected.hostId !== "local"
+    ? skills.hosts?.[selected.hostId]?.codex
+    : undefined;
   const agentSkills = useMemo(
-    () => selected?.agentType === "codex" ? skills.codex : [],
-    [selected?.agentType, skills.codex]
+    () => {
+      if (!selected) return [];
+      if (selected.hostId !== "local") return selectedHostSkills ?? [];
+      return selected.agentType === "codex" ? skills.codex : [];
+    },
+    [selected, selectedHostSkills, skills.codex]
   );
   const selectedSkill = agentSkills.find((skill) => skill.id === selectedSkillId);
 
@@ -78,7 +86,9 @@ export function RightPanel({
             <span>Host</span>
             <strong>{selected.hostId}</strong>
             <span>CWD</span>
-            <strong title={selected.cwd}>{selected.cwd ?? "unknown"}</strong>
+            <strong title={fullSessionPathTitle(selected, selected.cwd)}>
+              {displaySessionPath(selected, selected.cwd) ?? "unknown"}
+            </strong>
             <span>Command</span>
             <strong title={selected.command}>{selected.command ?? "unknown"}</strong>
             <span>Status</span>
@@ -90,7 +100,9 @@ export function RightPanel({
             <span>Panes</span>
             <strong>{selected.paneCount ?? "unknown"}</strong>
             <span>Pane Path</span>
-            <strong title={selected.activePanePath}>{selected.activePanePath ?? "unknown"}</strong>
+            <strong title={fullSessionPathTitle(selected, selected.activePanePath)}>
+              {displaySessionPath(selected, selected.activePanePath) ?? "unknown"}
+            </strong>
             <span>Pane Cmd</span>
             <strong title={selected.activePaneCommand}>{selected.activePaneCommand ?? "unknown"}</strong>
             <span>Created</span>
@@ -145,7 +157,11 @@ export function RightPanel({
             ))}
           </div>
         ) : (
-          <p className="muted">{selected ? agentLabel(selected.agentType) : "Agent"} tools are not registered yet.</p>
+          <p className="muted">
+            {selected?.hostId && selected.hostId !== "local"
+              ? `${selected.hostId} tools are not registered yet.`
+              : `${selected ? agentLabel(selected.agentType) : "Agent"} tools are not registered yet.`}
+          </p>
         )}
         {selectedSkill && (
           <div className="skill-detail">

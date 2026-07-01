@@ -219,6 +219,93 @@ button:disabled {
   min-height: 34px;
 }
 
+.remote-path-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #26323b;
+  border-radius: 7px;
+  background: #0b1115;
+}
+
+.remote-path-browser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.remote-path-browser-header div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.remote-path-browser-header strong {
+  color: #dce7ee;
+  font-size: 12px;
+}
+
+.remote-path-browser-header span {
+  overflow: hidden;
+  color: #8ea0ad;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-path-browser-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.remote-path-browser-actions button,
+.remote-path-list button {
+  min-width: 0;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.remote-path-list {
+  max-height: 178px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.remote-path-list button {
+  justify-content: flex-start;
+}
+
+.remote-path-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-path-browser-message,
+.remote-path-browser-error {
+  margin: 0;
+  font-size: 12px;
+}
+
+.remote-path-browser-message {
+  color: #8ea0ad;
+}
+
+.remote-path-browser-error {
+  color: #ffb4a9;
+}
+
 .icon-row {
   display: flex;
   gap: 8px;
