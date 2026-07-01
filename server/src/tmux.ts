@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { expandHome } from "./config.js";
 import { cleanProcessEnv, TERMINAL_ENV_UNSET_KEYS } from "./env.js";
 import { inferAgentType } from "./metadataStore.js";
-import type { SessionStatus, SessionSummary, TmuxPaneSummary, TmuxWindowSummary } from "./types.js";
+import type { AgentType, SessionStatus, SessionSummary, TmuxPaneSummary, TmuxWindowSummary } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -59,6 +59,11 @@ interface TmuxPaneInfo {
   currentCommand?: string;
 }
 
+export interface TmuxPaneSnapshot {
+  snapshot: string;
+  agentType: AgentType;
+}
+
 function runTmux(args: string[]) {
   return execFileAsync("tmux", args, { env: cleanProcessEnv() });
 }
@@ -73,6 +78,12 @@ async function unsetNoColor(target: string): Promise<void> {
 
 function tmuxLines(stdout: string): string[] {
   return stdout.split("\n").filter(Boolean);
+}
+
+function inferPaneAgentType(sessionName: string, currentCommand?: string): AgentType {
+  const commandAgentType = inferAgentType(currentCommand);
+  if (commandAgentType !== "custom") return commandAgentType;
+  return inferAgentType(sessionName);
 }
 
 export function isInternalSessionControlTmuxSession(name: string): boolean {
@@ -334,6 +345,34 @@ export async function captureTmuxPane(name: string, lines = 80): Promise<string>
   return stdout.trimEnd();
 }
 
+export async function captureTmuxPaneSnapshots(name: string, lines = 80): Promise<TmuxPaneSnapshot[]> {
+  const { stdout } = await runTmux([
+    "list-panes",
+    "-s",
+    "-t",
+    targetSession(name),
+    "-F",
+    ["#{pane_id}", "#{pane_current_command}"].join(FIELD_SEPARATOR)
+  ]);
+  const panes = tmuxLines(stdout).map((line) => {
+    const [paneId, currentCommand] = line.split(FIELD_SEPARATOR);
+    return { paneId, currentCommand };
+  });
+  if (panes.length === 0) {
+    return [{ snapshot: await captureTmuxPane(name, lines), agentType: inferAgentType(name) }];
+  }
+
+  return Promise.all(
+    panes.map(async ({ paneId, currentCommand }) => {
+      const { stdout: paneSnapshot } = await runTmux(["capture-pane", "-p", "-t", paneId, "-S", `-${lines}`]);
+      return {
+        snapshot: paneSnapshot.trimEnd(),
+        agentType: inferPaneAgentType(name, currentCommand)
+      };
+    })
+  );
+}
+
 export async function sendKeysToTmuxSession(name: string, command: string): Promise<void> {
   await runTmux(["send-keys", "-t", targetActivePane(name), command, "Enter"]);
 }
@@ -342,11 +381,97 @@ export async function sendLiteralToTmuxSession(name: string, text: string): Prom
   await runTmux(["send-keys", "-l", "-t", targetActivePane(name), text]);
 }
 
-export function detectSessionStatus(snapshot: string): SessionStatus {
-  const text = snapshot.toLowerCase();
+function snapshotTail(snapshot: string): { tail: string[]; text: string; lastLine: string; previousLine: string } {
+  const lines = snapshot
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const tail = lines.slice(-8);
+  const text = tail.join("\n").toLowerCase();
+  const lastLine = tail.at(-1)?.toLowerCase() ?? "";
+  const previousLine = tail.at(-2)?.toLowerCase() ?? "";
+
+  return { tail, text, lastLine, previousLine };
+}
+
+function detectCommonAttentionStatus(text: string, lastLine: string): SessionStatus | undefined {
   if (/(error|failed|exception|traceback|panic)/i.test(text)) return "error";
-  if (/(approve|approval|permission|allow\?|deny\?)/i.test(text)) return "needs_approval";
-  if (/(waiting for input|input required|press enter|continue\?|yes\/no|y\/n)/i.test(text)) return "waiting_input";
+  if (/^(approval required|permission required|approve|approval)\b/i.test(lastLine) || /\b(allow\?|deny\?)/i.test(lastLine)) {
+    return "needs_approval";
+  }
+  if (
+    /^(waiting for input|input required)\b/i.test(lastLine) ||
+    /\b(press (enter|return) to continue|continue\?|yes\/no|y\/n)\b/i.test(lastLine)
+  ) {
+    return "waiting_input";
+  }
   if (/(done|completed|finished successfully)/i.test(text)) return "completed";
-  return "running";
+  return undefined;
+}
+
+function detectCodexStatus(snapshot: string): SessionStatus {
+  const { text, lastLine, previousLine } = snapshotTail(snapshot);
+
+  if (/(^|\n)•\s+working\b/i.test(text)) return "running";
+  if (/^(›|>|[$#])(?:\s|$)/.test(lastLine)) return "idle";
+  if (/^›(?:\s|$)/.test(previousLine) && /^gpt-[\w.-]+.*\s·\s/.test(lastLine)) return "idle";
+  return detectCommonAttentionStatus(text, lastLine) ?? "running";
+}
+
+function detectClaudeStatus(snapshot: string): SessionStatus {
+  const { text, lastLine } = snapshotTail(snapshot);
+
+  if (/(^|\n)(esc to interrupt|interrupt|thinking|working|processing)\b/i.test(text)) return "running";
+  if (/^(>|❯|›)(?:\s|$)/.test(lastLine)) return "idle";
+  if (/\b(claude|sonnet|opus|haiku)\b.*\s·\s/i.test(lastLine)) return "idle";
+  return detectCommonAttentionStatus(text, lastLine) ?? "unknown";
+}
+
+function detectGeminiStatus(snapshot: string): SessionStatus {
+  const { tail, text, lastLine } = snapshotTail(snapshot);
+
+  if (/(^|\n)(esc to interrupt|thinking|working|processing|generating)\b/i.test(text)) return "running";
+  if (/^(>|❯|›)(?:\s|$)/.test(lastLine)) return "idle";
+  if (tail.some((line) => /^(>|❯|›)(?:\s|$)/.test(line)) && /\bgemini\b/i.test(lastLine)) return "idle";
+  if (/\b(gemini|agy)\b.*\s·\s/i.test(lastLine)) return "idle";
+  return detectCommonAttentionStatus(text, lastLine) ?? "unknown";
+}
+
+function detectShellStatus(): SessionStatus {
+  return "idle";
+}
+
+function detectDefaultStatus(snapshot: string): SessionStatus {
+  const { text, lastLine } = snapshotTail(snapshot);
+
+  if (/^(>|❯|›|[$#])\s+\S/.test(lastLine)) return "running";
+  if (/^(>|❯|›|[$#])\s*$/.test(lastLine)) return "idle";
+  return detectCommonAttentionStatus(text, lastLine) ?? "unknown";
+}
+
+export function detectSessionStatus(snapshot: string, agentType: AgentType = "custom"): SessionStatus {
+  switch (agentType) {
+    case "codex":
+      return detectCodexStatus(snapshot);
+    case "claude":
+      return detectClaudeStatus(snapshot);
+    case "gemini":
+      return detectGeminiStatus(snapshot);
+    case "shell":
+      return detectShellStatus();
+    case "build":
+    case "custom":
+      return detectDefaultStatus(snapshot);
+  }
+}
+
+export function aggregateSessionStatus(statuses: SessionStatus[]): SessionStatus {
+  if (statuses.length === 0) return "unknown";
+  if (statuses.some((status) => status === "error")) return "error";
+  if (statuses.some((status) => status === "needs_approval")) return "needs_approval";
+  if (statuses.some((status) => status === "waiting_input")) return "waiting_input";
+  if (statuses.some((status) => status === "running")) return "running";
+  if (statuses.every((status) => status === "completed")) return "completed";
+  if (statuses.every((status) => status === "idle" || status === "completed")) return "idle";
+  return "unknown";
 }
