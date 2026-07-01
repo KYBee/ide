@@ -3,7 +3,7 @@ import { loadConfig } from "./config.js";
 import { inferAgentType } from "./metadataStore.js";
 import { serverMode } from "./serverMode.js";
 import { detectSessionStatus } from "./tmux.js";
-import type { AgentHostConfig, AgentType, SessionKind, SessionStatus, SessionSummary, TmuxWindowsResponse } from "./types.js";
+import type { AgentHostConfig, AgentType, SessionKind, SessionStatus, SessionSummary, SkillRegistry, TmuxWindowsResponse } from "./types.js";
 
 interface RemoteSnapshot {
   sessionId: string;
@@ -106,6 +106,24 @@ export async function listAgentHostSessions(): Promise<SessionSummary[]> {
   );
 
   return results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+}
+
+export async function listAgentHostSkills(): Promise<Record<string, { codex: SkillRegistry["codex"] }>> {
+  const hosts = listAgentHosts();
+  const results = await Promise.allSettled(
+    hosts.map(async (host) => {
+      const skills = await requestAgent<SkillRegistry>(host, "/api/skills");
+      return [host.id, { codex: skills.codex ?? [] }] as const;
+    })
+  );
+
+  return Object.fromEntries(
+    results
+      .filter((result): result is PromiseFulfilledResult<readonly [string, { codex: SkillRegistry["codex"] }]> =>
+        result.status === "fulfilled"
+      )
+      .map((result) => result.value)
+  );
 }
 
 export async function createAgentSession(

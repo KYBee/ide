@@ -30,7 +30,7 @@ export async function listDirectories(inputPath?: string): Promise<DirectoryList
   const resolvedPath = path.resolve(expandHome(inputPath));
   const entries = await fs.readdir(resolvedPath, { withFileTypes: true });
   const directories = entries
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
     .map((entry) => ({
       name: entry.name,
       path: displayPath(path.join(resolvedPath, entry.name))

@@ -101,6 +101,7 @@ export interface SkillSummary {
 
 export interface SkillRegistry {
   codex: SkillSummary[];
+  hosts?: Record<string, { codex: SkillSummary[] }>;
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {

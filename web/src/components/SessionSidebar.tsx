@@ -35,6 +35,9 @@ function agentIcon(agentType: AgentType) {
 }
 
 function sessionSubtitle(session: SessionSummary): string {
+  if (session.hostId !== "local") {
+    return displaySessionPath(session, session.cwd ?? session.activePanePath) ?? `Remote ${session.hostId}`;
+  }
   const mode = session.persistent ? "tmux" : "pty";
   const location = displaySessionPath(session, session.cwd ?? session.activePanePath);
   const command = session.command ?? session.activePaneCommand;

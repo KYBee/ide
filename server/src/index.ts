@@ -19,6 +19,7 @@ import {
   captureAgentSnapshot,
   createAgentSession,
   getAgentHost,
+  listAgentHostSkills,
   listAgentHostSessions,
   listAgentTmuxWindows,
   requestAgent
@@ -150,9 +151,12 @@ app.get("/api/config", (_req, res) => {
   res.json(loadConfig());
 });
 
-app.get("/api/skills", (_req, res, next) => {
+app.get("/api/skills", async (_req, res, next) => {
   try {
-    res.json({ codex: listCodexSkills() });
+    res.json({
+      codex: listCodexSkills(),
+      hosts: await listAgentHostSkills()
+    });
   } catch (error) {
     next(error);
   }
