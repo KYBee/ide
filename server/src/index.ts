@@ -15,6 +15,13 @@ import { attachTerminalSocket } from "./terminalSocket.js";
 import { listCodexSkills } from "./skills.js";
 import { enrichTmuxSessionsWithStatus } from "./sessionStatus.js";
 import {
+  captureAgentSnapshot,
+  getAgentHost,
+  listAgentHostSessions,
+  listAgentTmuxWindows,
+  requestAgent
+} from "./agentHosts.js";
+import {
   captureTmuxPane,
   createTmuxWindow,
   createTmuxSession,
@@ -35,10 +42,12 @@ import {
 } from "./tmux.js";
 import { createPtySession, killPtySession, listPtySessions } from "./ptyRegistry.js";
 import { tmuxSessionNameSchema, tmuxWindowNameSchema, zodErrorMessage } from "./validation.js";
+import { requireAgentToken } from "./auth.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(requireAgentToken);
 
 const createSessionSchema = z.object({
   name: z.string().min(1),
@@ -101,6 +110,33 @@ function touchTmuxSession(name: string, patch: SessionMetadataPatch = {}) {
   });
 }
 
+async function forwardAgentRequest(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+  path: string
+) {
+  try {
+    const host = getAgentHost(req.params.hostId);
+    if (!host) {
+      res.status(404).json({ error: "agent host not found" });
+      return;
+    }
+
+    const result = await requestAgent<unknown>(host, path, {
+      method: req.method,
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body ?? {})
+    });
+    if (result === undefined) {
+      res.status(204).send();
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
@@ -119,9 +155,13 @@ app.get("/api/skills", (_req, res, next) => {
 
 app.get("/api/sessions", async (_req, res, next) => {
   try {
-    const [tmuxSessions, ptySessions] = await Promise.all([listTmuxSessions(), listPtySessions()]);
+    const [tmuxSessions, ptySessions, agentSessions] = await Promise.all([
+      listTmuxSessions(),
+      listPtySessions(),
+      listAgentHostSessions()
+    ]);
     const enrichedTmuxSessions = await enrichTmuxSessionsWithStatus(tmuxSessions.map(withSessionMetadata));
-    res.json([...enrichedTmuxSessions, ...ptySessions.map(withSessionMetadata)]);
+    res.json([...enrichedTmuxSessions, ...ptySessions.map(withSessionMetadata), ...agentSessions]);
   } catch (error) {
     next(error);
   }
@@ -247,6 +287,20 @@ app.get("/api/sessions/tmux/:name/snapshot", async (req, res, next) => {
   }
 });
 
+app.get("/api/hosts/:hostId/sessions/tmux/:name/snapshot", async (req, res, next) => {
+  try {
+    const host = getAgentHost(req.params.hostId);
+    if (!host) {
+      res.status(404).json({ error: "agent host not found" });
+      return;
+    }
+
+    res.json(await captureAgentSnapshot(host, req.params.name));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/sessions/tmux/:name/send", async (req, res, next) => {
   try {
     const input = sendKeysSchema.parse(req.body);
@@ -256,6 +310,10 @@ app.post("/api/sessions/tmux/:name/send", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.post("/api/hosts/:hostId/sessions/tmux/:name/send", (req, res, next) => {
+  forwardAgentRequest(req, res, next, `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/send`);
 });
 
 app.post("/api/sessions/tmux/:name/input", async (req, res, next) => {
@@ -269,10 +327,28 @@ app.post("/api/sessions/tmux/:name/input", async (req, res, next) => {
   }
 });
 
+app.post("/api/hosts/:hostId/sessions/tmux/:name/input", (req, res, next) => {
+  forwardAgentRequest(req, res, next, `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/input`);
+});
+
 app.get("/api/sessions/tmux/:name/windows", async (req, res, next) => {
   try {
     const windows = await listTmuxWindows(req.params.name);
     res.json({ sessionId: `tmux:${req.params.name}`, windows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/hosts/:hostId/sessions/tmux/:name/windows", async (req, res, next) => {
+  try {
+    const host = getAgentHost(req.params.hostId);
+    if (!host) {
+      res.status(404).json({ error: "agent host not found" });
+      return;
+    }
+
+    res.json(await listAgentTmuxWindows(host, req.params.name));
   } catch (error) {
     next(error);
   }
@@ -289,6 +365,10 @@ app.post("/api/sessions/tmux/:name/windows", async (req, res, next) => {
   }
 });
 
+app.post("/api/hosts/:hostId/sessions/tmux/:name/windows", (req, res, next) => {
+  forwardAgentRequest(req, res, next, `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/windows`);
+});
+
 app.post("/api/sessions/tmux/:name/windows/:windowIndex/select", async (req, res, next) => {
   try {
     const windowIndex = windowIndexSchema.parse(req.params.windowIndex);
@@ -300,6 +380,15 @@ app.post("/api/sessions/tmux/:name/windows/:windowIndex/select", async (req, res
   }
 });
 
+app.post("/api/hosts/:hostId/sessions/tmux/:name/windows/:windowIndex/select", (req, res, next) => {
+  forwardAgentRequest(
+    req,
+    res,
+    next,
+    `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/windows/${req.params.windowIndex}/select`
+  );
+});
+
 app.patch("/api/sessions/tmux/:name/windows/:windowIndex", async (req, res, next) => {
   try {
     const windowIndex = windowIndexSchema.parse(req.params.windowIndex);
@@ -309,6 +398,15 @@ app.patch("/api/sessions/tmux/:name/windows/:windowIndex", async (req, res, next
   } catch (error) {
     next(error);
   }
+});
+
+app.patch("/api/hosts/:hostId/sessions/tmux/:name/windows/:windowIndex", (req, res, next) => {
+  forwardAgentRequest(
+    req,
+    res,
+    next,
+    `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/windows/${req.params.windowIndex}`
+  );
 });
 
 app.delete("/api/sessions/tmux/:name/windows/:windowIndex", async (req, res, next) => {
@@ -327,6 +425,15 @@ app.delete("/api/sessions/tmux/:name/windows/:windowIndex", async (req, res, nex
   }
 });
 
+app.delete("/api/hosts/:hostId/sessions/tmux/:name/windows/:windowIndex", (req, res, next) => {
+  forwardAgentRequest(
+    req,
+    res,
+    next,
+    `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/windows/${req.params.windowIndex}`
+  );
+});
+
 app.post("/api/sessions/tmux/:name/windows/:windowIndex/panes/split", async (req, res, next) => {
   try {
     const windowIndex = windowIndexSchema.parse(req.params.windowIndex);
@@ -339,6 +446,15 @@ app.post("/api/sessions/tmux/:name/windows/:windowIndex/panes/split", async (req
   }
 });
 
+app.post("/api/hosts/:hostId/sessions/tmux/:name/windows/:windowIndex/panes/split", (req, res, next) => {
+  forwardAgentRequest(
+    req,
+    res,
+    next,
+    `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/windows/${req.params.windowIndex}/panes/split`
+  );
+});
+
 app.post("/api/sessions/tmux/:name/panes/:paneId/select", async (req, res, next) => {
   try {
     await selectTmuxPane(req.params.paneId);
@@ -349,6 +465,15 @@ app.post("/api/sessions/tmux/:name/panes/:paneId/select", async (req, res, next)
   }
 });
 
+app.post("/api/hosts/:hostId/sessions/tmux/:name/panes/:paneId/select", (req, res, next) => {
+  forwardAgentRequest(
+    req,
+    res,
+    next,
+    `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/panes/${encodeURIComponent(req.params.paneId)}/select`
+  );
+});
+
 app.delete("/api/sessions/tmux/:name/panes/:paneId", async (req, res, next) => {
   try {
     await killTmuxPane(req.params.paneId);
@@ -357,6 +482,15 @@ app.delete("/api/sessions/tmux/:name/panes/:paneId", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.delete("/api/hosts/:hostId/sessions/tmux/:name/panes/:paneId", (req, res, next) => {
+  forwardAgentRequest(
+    req,
+    res,
+    next,
+    `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/panes/${encodeURIComponent(req.params.paneId)}`
+  );
 });
 
 app.delete("/api/sessions/:type/:name", async (req, res, next) => {
@@ -372,6 +506,10 @@ app.delete("/api/sessions/:type/:name", async (req, res, next) => {
   }
 });
 
+app.delete("/api/hosts/:hostId/sessions/tmux/:name", (req, res, next) => {
+  forwardAgentRequest(req, res, next, `/api/sessions/tmux/${encodeURIComponent(req.params.name)}`);
+});
+
 app.patch("/api/sessions/tmux/:name", async (req, res, next) => {
   try {
     const input = renameSessionSchema.parse(req.body);
@@ -381,6 +519,10 @@ app.patch("/api/sessions/tmux/:name", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.patch("/api/hosts/:hostId/sessions/tmux/:name", (req, res, next) => {
+  forwardAgentRequest(req, res, next, `/api/sessions/tmux/${encodeURIComponent(req.params.name)}`);
 });
 
 app.patch("/api/sessions/:type/:name/metadata", async (req, res, next) => {
@@ -397,6 +539,10 @@ app.patch("/api/sessions/:type/:name/metadata", async (req, res, next) => {
   }
 });
 
+app.patch("/api/hosts/:hostId/sessions/tmux/:name/metadata", (req, res, next) => {
+  forwardAgentRequest(req, res, next, `/api/sessions/tmux/${encodeURIComponent(req.params.name)}/metadata`);
+});
+
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof z.ZodError) {
     res.status(400).json({ error: zodErrorMessage(error) });
@@ -408,9 +554,10 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
 });
 
 const port = Number(process.env.PORT ?? 3635);
+const host = process.env.HOST ?? process.env.SESSION_CONTROL_HOST ?? "127.0.0.1";
 const server = http.createServer(app);
 attachTerminalSocket(server);
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`session-control server listening on http://127.0.0.1:${port}`);
+server.listen(port, host, () => {
+  console.log(`session-control server listening on http://${host}:${port}`);
 });
