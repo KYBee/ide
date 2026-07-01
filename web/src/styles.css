@@ -356,7 +356,7 @@ button:disabled {
 }
 
 .status-dot.running {
-  color: #72a7ff;
+  color: #44c772;
 }
 
 .status-dot.waiting_input {
