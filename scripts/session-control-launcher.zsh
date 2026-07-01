@@ -122,13 +122,19 @@ start_full_stack() {
 
 start_desktop_shell() {
   echo "" >>"$LOG_FILE" 2>&1
-  log_line "Starting Session Control desktop shell against existing ports"
+  log_line "Focusing Session Control desktop shell against existing ports"
+  if activate_existing_app; then
+    log_line "Existing Session Control desktop shell activated"
+    return 0
+  fi
+
+  log_line "No existing Session Control desktop shell found; starting desktop tmux signal"
   start_desktop_service
   focus_desktop_shell || true
 }
 
 if app_ports_are_ready; then
-  log_line "Session Control ports are ready; starting desktop shell signal"
+  log_line "Session Control ports are ready; focusing desktop shell"
   start_desktop_shell
   exit 0
 fi
