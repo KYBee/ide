@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../server/src/config";
 import { enrichTmuxSessionsWithStatus, statusScanLimit } from "../server/src/sessionStatus";
@@ -124,4 +124,28 @@ test("status enrichment can skip tmux snapshot scans when the limit is zero", as
   ];
 
   assert.deepEqual(await enrichTmuxSessionsWithStatus(sessions, 0), sessions);
+});
+
+test("config treats yaml tilde cwd as the home directory", () => {
+  const previousConfig = process.env.SESSION_CONTROL_CONFIG;
+  const directory = mkdtempSync(join(tmpdir(), "session-control-config-"));
+  const configPath = join(directory, "projects.yaml");
+
+  try {
+    process.env.SESSION_CONTROL_CONFIG = configPath;
+    writeFileSync(configPath, [
+      "projects:",
+      "  - name: Shell",
+      "    cwd: ~",
+      "    command: $SHELL",
+      ""
+    ].join("\n"));
+
+    const config = loadConfig();
+    assert.equal(config.projects[0].cwd, homedir());
+  } finally {
+    if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
+    else process.env.SESSION_CONTROL_CONFIG = previousConfig;
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
