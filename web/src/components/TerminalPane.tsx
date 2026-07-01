@@ -77,19 +77,34 @@ export function TerminalPane({ session }: TerminalPaneProps) {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     let disposed = false;
     let resizeFrame: number | undefined;
-    const sendResize = () => {
+    let resizeDebounceTimer: number | undefined;
+    let lastSentSize: { cols: number; rows: number } | undefined;
+    const fitTerminal = () => {
       if (disposed) return;
       fitAddon.fit();
+      return {
+        cols: Math.max(terminal.cols, 40),
+        rows: Math.max(terminal.rows, 10)
+      };
+    };
+    const sendResize = () => {
+      const size = fitTerminal();
+      if (!size) return;
+      if (lastSentSize?.cols === size.cols && lastSentSize.rows === size.rows) return;
+
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN) {
-        const cols = Math.max(terminal.cols, 40);
-        const rows = Math.max(terminal.rows, 10);
-        socket.send(JSON.stringify({ type: "resize", cols, rows }));
+        lastSentSize = size;
+        socket.send(JSON.stringify({ type: "resize", cols: size.cols, rows: size.rows }));
       }
     };
-    const scheduleResize = () => {
+    const scheduleResize = (delay = 80) => {
       if (resizeFrame !== undefined) window.cancelAnimationFrame(resizeFrame);
-      resizeFrame = window.requestAnimationFrame(sendResize);
+      if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
+      resizeFrame = window.requestAnimationFrame(() => {
+        fitTerminal();
+        resizeDebounceTimer = window.setTimeout(sendResize, delay);
+      });
     };
 
     const openSocket = () => {
@@ -154,12 +169,13 @@ export function TerminalPane({ session }: TerminalPaneProps) {
       }
     });
 
-    const resizeObserver = new ResizeObserver(scheduleResize);
+    const resizeObserver = new ResizeObserver(() => scheduleResize());
     resizeObserver.observe(hostRef.current);
 
     return () => {
       disposed = true;
       if (resizeFrame !== undefined) window.cancelAnimationFrame(resizeFrame);
+      if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
       window.clearTimeout(reconnectTimerRef.current);
       resizeObserver.disconnect();
       inputDisposable.dispose();
