@@ -7,6 +7,7 @@ const MIN_LEFT_WIDTH = 220;
 const MIN_RIGHT_WIDTH = 260;
 const MIN_WORKSPACE_WIDTH = 360;
 export const RESIZE_HANDLE_WIDTH = 8;
+export const PANEL_RESIZE_END_EVENT = "session-control:panel-resize-end";
 
 export interface PanelWidths {
   left: number;
@@ -126,6 +127,7 @@ export function usePanelWidths() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
+      window.dispatchEvent(new CustomEvent(PANEL_RESIZE_END_EVENT));
     };
 
     window.addEventListener("pointermove", handlePointerMove);
