@@ -51,6 +51,21 @@ test("detectSessionStatus uses agent-specific adapters", () => {
   assert.equal(detectSessionStatus("unknown tui footer", "custom"), "unknown");
 });
 
+test("detectSessionStatus recognizes command approval prompts", () => {
+  assert.equal(detectSessionStatus([
+    "Would you like to run the following command?",
+    "",
+    "Reason: Restart the server",
+    "",
+    "$ pkill -f 'node server/server.js' || true",
+    "",
+    "› 1. Yes, proceed (y)",
+    "  2. No, and tell Codex what to do differently (esc)",
+    "",
+    "Press enter to confirm or esc to cancel"
+  ].join("\n"), "custom"), "needs_approval");
+});
+
 test("aggregateSessionStatus only reports idle when every pane is idle or completed", () => {
   assert.equal(aggregateSessionStatus(["idle", "idle"]), "idle");
   assert.equal(aggregateSessionStatus(["idle", "completed"]), "idle");
