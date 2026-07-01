@@ -31,17 +31,27 @@ function agentIcon(agentType: AgentType) {
 
 function sessionSubtitle(session: SessionSummary): string {
   const mode = session.persistent ? "tmux" : "pty";
-  const location = session.cwd ?? session.activePanePath;
+  const location = displaySessionPath(session, session.cwd ?? session.activePanePath);
   const command = session.command ?? session.activePaneCommand;
   return [session.agentType, mode, location, command].filter(Boolean).join(" · ");
 }
 
+function isRemoteSession(session: SessionSummary): boolean {
+  return session.hostId !== "local";
+}
+
+function displaySessionPath(session: SessionSummary, path?: string): string | undefined {
+  if (!path) return undefined;
+  return isRemoteSession(session) ? `Remote ${path}` : path;
+}
+
 function sessionPath(session: SessionSummary): string {
-  return session.cwd ?? session.activePanePath ?? "Unknown path";
+  return displaySessionPath(session, session.cwd ?? session.activePanePath) ?? "Unknown path";
 }
 
 function pathDepth(value: string): number {
   if (value === "~" || value === "Unknown path") return 0;
+  if (value.startsWith("Remote ")) return pathDepth(value.slice("Remote ".length));
   return value.split("/").filter(Boolean).length;
 }
 

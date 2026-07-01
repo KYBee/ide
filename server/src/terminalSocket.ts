@@ -38,14 +38,15 @@ function parseRemoteTmuxSessionId(sessionId: string): { hostId: string; name: st
 }
 
 function bridgeRemoteTerminal(socket: WebSocket, remoteSocket: WebSocket): void {
-  const pendingMessages: WebSocket.RawData[] = [];
+  const pendingMessages: string[] = [];
 
   socket.on("message", (raw) => {
+    const message = raw.toString();
     if (remoteSocket.readyState === WebSocket.OPEN) {
-      remoteSocket.send(raw);
+      remoteSocket.send(message);
       return;
     }
-    pendingMessages.push(raw);
+    pendingMessages.push(message);
   });
 
   remoteSocket.on("open", () => {
@@ -53,7 +54,7 @@ function bridgeRemoteTerminal(socket: WebSocket, remoteSocket: WebSocket): void 
   });
 
   remoteSocket.on("message", (raw) => {
-    if (socket.readyState === WebSocket.OPEN) socket.send(raw);
+    if (socket.readyState === WebSocket.OPEN) socket.send(raw.toString());
   });
 
   remoteSocket.on("close", () => {
