@@ -110,7 +110,11 @@ async function refreshRemoteStatus(host: AgentHostConfig, session: SessionSummar
     );
     return {
       ...session,
-      status: detectSessionStatus(snapshot.snapshot, session.agentType)
+      status: remoteStatus(
+        detectSessionStatus(snapshot.snapshot, session.agentType),
+        session.activePaneCommand,
+        session.agentType
+      )
     };
   } catch {
     return session;
