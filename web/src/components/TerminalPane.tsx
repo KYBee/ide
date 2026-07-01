@@ -38,10 +38,27 @@ export function TerminalPane({ session }: TerminalPaneProps) {
       fontSize: 13,
       lineHeight: 1.2,
       theme: {
-        background: "#101418",
-        foreground: "#e7edf2",
-        cursor: "#f7c948",
-        selectionBackground: "#334155"
+        background: "#15191f",
+        foreground: "#dcdcdc",
+        cursor: "#ffffff",
+        cursorAccent: "#000000",
+        selectionBackground: "#334155",
+        black: "#14191e",
+        red: "#b43c2a",
+        green: "#00c200",
+        yellow: "#c7c400",
+        blue: "#2744c7",
+        magenta: "#c040be",
+        cyan: "#00c5c7",
+        white: "#c7c7c7",
+        brightBlack: "#686868",
+        brightRed: "#dd7975",
+        brightGreen: "#58e790",
+        brightYellow: "#ece100",
+        brightBlue: "#a7abf2",
+        brightMagenta: "#e17ee1",
+        brightCyan: "#60fdff",
+        brightWhite: "#ffffff"
       }
     });
     const fitAddon = new FitAddon();

@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadConfig } from "../server/src/config";
 import { enrichTmuxSessionsWithStatus, statusScanLimit } from "../server/src/sessionStatus";
 import { inferAgentType } from "../server/src/metadataStore";
 import { buildTmuxShellCommand, detectSessionStatus, isInternalSessionControlTmuxSession } from "../server/src/tmux";
@@ -38,6 +42,33 @@ test("tmux launch commands run through the user's login shell", () => {
   assert.match(command, /exec '.+' -lic/);
   assert.match(command, /agy/);
   assert.match(command, /exec '.+' -l/);
+  assert.match(command, /unset .*NO_COLOR/);
+  assert.match(command, /FORCE_COLOR=3/);
+});
+
+test("config treats yaml null cwd as the user home directory", () => {
+  const previousConfig = process.env.SESSION_CONTROL_CONFIG;
+  const directory = mkdtempSync(join(tmpdir(), "session-control-config-"));
+  const configPath = join(directory, "projects.yaml");
+
+  try {
+    process.env.SESSION_CONTROL_CONFIG = configPath;
+    writeFileSync(configPath, [
+      "projects:",
+      "  - name: Shell",
+      "    cwd: ~",
+      "    command: $SHELL",
+      ""
+    ].join("\n"));
+
+    const config = loadConfig();
+    assert.equal(config.projects[0].cwd, process.env.HOME);
+    assert.equal(config.projects[0].command, "$SHELL");
+  } finally {
+    if (previousConfig === undefined) delete process.env.SESSION_CONTROL_CONFIG;
+    else process.env.SESSION_CONTROL_CONFIG = previousConfig;
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("tmux session names reject targets that would be ambiguous", () => {

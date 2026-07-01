@@ -5,9 +5,14 @@ import yaml from "js-yaml";
 import { z } from "zod";
 import type { AppConfig } from "./types.js";
 
+const cwdSchema = z.preprocess(
+  (value) => value === null ? "~" : value,
+  z.string().min(1)
+);
+
 const projectSchema = z.object({
   name: z.string().min(1),
-  cwd: z.string().min(1),
+  cwd: cwdSchema,
   command: z.string().min(1),
   tmux: z.boolean().default(true),
   agentType: z.enum(["codex", "claude", "gemini", "shell", "build", "custom"]).optional(),
