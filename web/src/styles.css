@@ -115,8 +115,8 @@ button:disabled {
 
 .resize-handle:hover::before,
 .resize-handle:active::before {
-  background: #9bd1e5;
-  box-shadow: 0 -12px 0 #9bd1e5, 0 12px 0 #9bd1e5;
+  background: #44c772;
+  box-shadow: 0 -12px 0 #44c772, 0 12px 0 #44c772;
   opacity: 1;
 }
 
@@ -321,8 +321,8 @@ button:disabled {
 }
 
 .primary {
-  background: #2d5f73;
-  border-color: #3d7f99;
+  background: #2d7045;
+  border-color: #44c772;
 }
 
 .session-list {
@@ -424,8 +424,8 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #24313a;
-  color: #9bd1e5;
+  background: #1d3126;
+  color: #44c772;
 }
 
 .session-copy {
@@ -520,8 +520,8 @@ button:disabled {
 }
 
 .window-tab-shell.selected {
-  background: #1d2a31;
-  border-color: #3d7f99;
+  background: #1d3126;
+  border-color: #2d7045;
 }
 
 .window-tab {
@@ -544,7 +544,7 @@ button:disabled {
 }
 
 .window-tab span {
-  color: #9bd1e5;
+  color: #44c772;
   font-size: 12px;
   font-weight: 700;
 }
@@ -873,9 +873,9 @@ button:disabled {
 }
 
 .skill-chip.selected {
-  border-color: #3d7f99;
-  background: #1d2a31;
-  color: #9bd1e5;
+  border-color: #2d7045;
+  background: #1d3126;
+  color: #44c772;
 }
 
 .skill-detail {
