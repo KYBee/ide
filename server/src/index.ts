@@ -2,6 +2,7 @@ import http from "node:http";
 import cors from "cors";
 import express from "express";
 import { z } from "zod";
+import { loadDotEnv } from "./dotenv.js";
 import { loadConfig } from "./config.js";
 import {
   inferAgentType,
@@ -43,6 +44,8 @@ import {
 import { createPtySession, killPtySession, listPtySessions } from "./ptyRegistry.js";
 import { tmuxSessionNameSchema, tmuxWindowNameSchema, zodErrorMessage } from "./validation.js";
 import { requireAgentToken } from "./auth.js";
+
+loadDotEnv();
 
 const app = express();
 app.use(cors());

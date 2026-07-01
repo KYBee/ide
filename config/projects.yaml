@@ -2,7 +2,6 @@ hosts:
   - id: local
     label: Local
     type: local
-
 projects:
   - name: Shell
     cwd: "~"
