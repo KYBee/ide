@@ -396,7 +396,11 @@ function snapshotTail(snapshot: string): { tail: string[]; text: string; lastLin
 
 function detectCommonAttentionStatus(text: string, lastLine: string): SessionStatus | undefined {
   if (/(error|failed|exception|traceback|panic)/i.test(text)) return "error";
-  if (/^(approval required|permission required|approve|approval)\b/i.test(lastLine) || /\b(allow\?|deny\?)/i.test(lastLine)) {
+  if (
+    /^(approval required|permission required|approve|approval)\b/i.test(lastLine) ||
+    /\b(allow\?|deny\?|would you like to run the following command|yes, proceed)\b/i.test(text) ||
+    /\bpress (enter|return) to confirm\b/i.test(lastLine)
+  ) {
     return "needs_approval";
   }
   if (
