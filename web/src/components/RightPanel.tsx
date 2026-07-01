@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Save, Send, X, Tag } from "lucide-react";
 import type { SessionSummary, SkillRegistry, SkillSummary } from "../lib/api";
 import { agentLabel } from "../lib/agents";
-import { displaySessionPath } from "../lib/sessionDisplay";
+import { displaySessionPath, fullSessionPathTitle } from "../lib/sessionDisplay";
 
 interface RightPanelProps {
   selected?: SessionSummary;
@@ -79,7 +79,7 @@ export function RightPanel({
             <span>Host</span>
             <strong>{selected.hostId}</strong>
             <span>CWD</span>
-            <strong title={displaySessionPath(selected, selected.cwd)}>
+            <strong title={fullSessionPathTitle(selected, selected.cwd)}>
               {displaySessionPath(selected, selected.cwd) ?? "unknown"}
             </strong>
             <span>Command</span>
@@ -93,7 +93,7 @@ export function RightPanel({
             <span>Panes</span>
             <strong>{selected.paneCount ?? "unknown"}</strong>
             <span>Pane Path</span>
-            <strong title={displaySessionPath(selected, selected.activePanePath)}>
+            <strong title={fullSessionPathTitle(selected, selected.activePanePath)}>
               {displaySessionPath(selected, selected.activePanePath) ?? "unknown"}
             </strong>
             <span>Pane Cmd</span>
