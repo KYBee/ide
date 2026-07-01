@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bot, ChevronLeft, Circle, FolderOpen, Hammer, Monitor, Plus, RefreshCw, Sparkles, SquareTerminal, Terminal } from "lucide-react";
 import { listDirectories } from "../lib/api";
 import type { AgentType, DirectoryListing, SessionSummary } from "../lib/api";
@@ -110,7 +110,11 @@ export function SessionSidebar({
     window.localStorage.setItem("session-control:group-mode", nextMode);
   }
 
-  async function openRemotePathBrowser(path = startCwd || "~") {
+  useEffect(() => {
+    setPathBrowser(undefined);
+  }, [startHostId]);
+
+  async function handlePickDirectory(path = startCwd || "~") {
     if (!isRemoteHost) {
       onPickStartCwd();
       return;
@@ -182,7 +186,7 @@ export function SessionSidebar({
             />
             <button
               className="icon-button"
-              onClick={() => openRemotePathBrowser()}
+              onClick={() => handlePickDirectory()}
               title={startHostId === "local" ? "Choose directory" : `Browse ${selectedHost?.label ?? startHostId}`}
             >
               <FolderOpen size={16} />
@@ -202,13 +206,13 @@ export function SessionSidebar({
             </div>
             <div className="remote-path-browser-actions">
               <button
-                onClick={() => pathBrowser.listing?.parent && openRemotePathBrowser(pathBrowser.listing.parent)}
+                onClick={() => pathBrowser.listing?.parent && handlePickDirectory(pathBrowser.listing.parent)}
                 disabled={!pathBrowser.listing?.parent || pathBrowser.loading}
               >
                 <ChevronLeft size={14} />
                 Parent
               </button>
-              <button onClick={() => openRemotePathBrowser(startCwd || "~")} disabled={pathBrowser.loading}>
+              <button onClick={() => handlePickDirectory(startCwd || "~")} disabled={pathBrowser.loading}>
                 <RefreshCw size={14} />
                 Refresh
               </button>
@@ -221,7 +225,7 @@ export function SessionSidebar({
                   <p className="remote-path-browser-message">No subdirectories</p>
                 ) : (
                   pathBrowser.listing.entries.map((entry) => (
-                    <button key={entry.path} onClick={() => openRemotePathBrowser(entry.path)} title={entry.path}>
+                    <button key={entry.path} onClick={() => handlePickDirectory(entry.path)} title={entry.path}>
                       <FolderOpen size={14} />
                       <span>{entry.name}</span>
                     </button>
