@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  captureSnapshot,
   createTmuxWindow,
   createSession,
   insertTmuxText,
@@ -9,9 +8,7 @@ import {
   listSessions,
   listTmuxWindows,
   loadSkills,
-  renameTmuxSession,
   renameTmuxWindow,
-  sendTmuxCommand,
   selectTmuxWindow,
   splitTmuxPane,
   updateSessionMetadata
@@ -36,7 +33,6 @@ export default function App() {
   const [startCwd, setStartCwd] = useState("~");
   const [startAgentType, setStartAgentType] = useState<AgentType>("codex");
   const [error, setError] = useState<string>();
-  const [snapshot, setSnapshot] = useState<string>();
   const [tmuxWindows, setTmuxWindows] = useState<TmuxWindowSummary[]>([]);
   const [tmuxLaunchAgentType, setTmuxLaunchAgentType] = useState<AgentType>("shell");
   const [terminalNonce, setTerminalNonce] = useState(0);
@@ -137,31 +133,9 @@ export default function App() {
     }
   }
 
-  async function handleRename(session: SessionSummary) {
-    const name = window.prompt("Rename tmux session", session.name);
-    if (!name || name === session.name) return;
-    try {
-      await renameTmuxSession(session, name);
-      await refresh();
-      setSelectedId(`tmux:${name}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rename session");
-    }
-  }
-
-  async function handleSnapshot(session: SessionSummary) {
-    try {
-      const result = await captureSnapshot(session);
-      setSnapshot(result.snapshot || "[empty pane]");
-      setError(undefined);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to capture snapshot");
-    }
-  }
-
   async function handleUpdateMetadata(
     session: SessionSummary,
-    input: { displayName?: string; cwd?: string; command?: string }
+    input: { displayName?: string }
   ) {
     try {
       await updateSessionMetadata(session, input);
@@ -169,16 +143,6 @@ export default function App() {
       setError(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update session");
-    }
-  }
-
-  async function handleSendCommand(session: SessionSummary, command: string) {
-    try {
-      await sendTmuxCommand(session, command);
-      await refresh();
-      setError(undefined);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send command");
     }
   }
 
@@ -321,12 +285,8 @@ export default function App() {
         selected={selected}
         skills={skills}
         onKill={handleKill}
-        onRename={handleRename}
-        onSnapshot={handleSnapshot}
         onUpdateMetadata={handleUpdateMetadata}
-        onSendCommand={handleSendCommand}
         onInsertSkillPrompt={handleInsertSkillPrompt}
-        snapshot={snapshot}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import os from "node:os";
 import pty from "@homebridge/node-pty-prebuilt-multiarch";
 import { expandHome } from "./config.js";
-import { cleanProcessEnv } from "./env.js";
+import { colorProcessEnv } from "./env.js";
 import { inferAgentType } from "./metadataStore.js";
 import type { AgentType, SessionSummary } from "./types.js";
 
@@ -54,7 +54,7 @@ export function createPtySession(input: {
     cols: input.cols ?? 100,
     rows: input.rows ?? 30,
     cwd,
-    env: cleanProcessEnv()
+    env: colorProcessEnv()
   });
   const now = new Date().toISOString();
   const record: PtyRecord = {

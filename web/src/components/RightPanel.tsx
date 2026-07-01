@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Camera, Save, Send, Skull, Tag } from "lucide-react";
+import { BookOpen, Save, Send, X, Tag } from "lucide-react";
 import type { SessionSummary, SkillRegistry, SkillSummary } from "../lib/api";
 import { agentLabel } from "../lib/agents";
 
@@ -7,15 +7,11 @@ interface RightPanelProps {
   selected?: SessionSummary;
   skills: SkillRegistry;
   onKill: (session: SessionSummary) => void;
-  onRename: (session: SessionSummary) => void;
-  onSnapshot: (session: SessionSummary) => void;
   onUpdateMetadata: (
     session: SessionSummary,
-    input: { displayName?: string; cwd?: string; command?: string }
+    input: { displayName?: string }
   ) => void;
-  onSendCommand: (session: SessionSummary, command: string) => void;
   onInsertSkillPrompt: (session: SessionSummary, skill: SkillSummary) => void;
-  snapshot?: string;
 }
 
 function formatDate(value?: string) {
@@ -32,23 +28,15 @@ export function RightPanel({
   selected,
   skills,
   onKill,
-  onRename,
-  onSnapshot,
   onUpdateMetadata,
-  onSendCommand,
-  onInsertSkillPrompt,
-  snapshot
+  onInsertSkillPrompt
 }: RightPanelProps) {
   const [displayName, setDisplayName] = useState("");
-  const [cwd, setCwd] = useState("");
-  const [command, setCommand] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState<string>();
 
   useEffect(() => {
     setDisplayName(selected?.displayName ?? "");
-    setCwd(selected?.cwd ?? "");
-    setCommand(selected?.command ?? "");
-  }, [selected?.id, selected?.displayName, selected?.cwd, selected?.command]);
+  }, [selected?.id, selected?.displayName]);
 
   const agentSkills = useMemo(
     () => selected?.agentType === "codex" ? skills.codex : [],
@@ -119,50 +107,23 @@ export function RightPanel({
               Alias
               <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder={selected.name} />
             </label>
-            <label>
-              Working Directory
-              <input value={cwd} onChange={(event) => setCwd(event.target.value)} placeholder="~/project" />
-            </label>
-            <label>
-              Command
-              <input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="$SHELL" />
-            </label>
           </div>
         )}
         <div className="action-row">
           <button
             disabled={!selected}
             onClick={() => selected && onUpdateMetadata(selected, {
-              displayName: displayName.trim(),
-              cwd: cwd || undefined,
-              command: command || undefined
+              displayName: displayName.trim()
             })}
           >
             <Save size={15} />
             Save
           </button>
-          <button
-            disabled={!selected || selected.type !== "tmux" || !command.trim()}
-            onClick={() => selected && onSendCommand(selected, command.trim())}
-          >
-            <Send size={15} />
-            Send
-          </button>
-          <button disabled={!selected || selected.type !== "tmux"} onClick={() => selected && onRename(selected)}>
-            Rename
-          </button>
-          <button disabled={!selected || selected.type !== "tmux"} onClick={() => selected && onSnapshot(selected)}>
-            <Camera size={15} />
-            Snapshot
-          </button>
           <button className="danger" disabled={!selected} onClick={() => selected && onKill(selected)}>
-            <Skull size={15} />
-            Kill
+            <X size={15} />
+            Close
           </button>
         </div>
-        {snapshot && (
-          <pre className="snapshot-preview">{snapshot}</pre>
-        )}
       </section>
 
       <section className="skills-section">
