@@ -1,7 +1,8 @@
 import { WebSocket } from "ws";
 import { loadConfig } from "./config.js";
+import { inferAgentType } from "./metadataStore.js";
 import { serverMode } from "./serverMode.js";
-import type { AgentHostConfig, SessionSummary, TmuxWindowsResponse } from "./types.js";
+import type { AgentHostConfig, AgentType, SessionStatus, SessionSummary, TmuxWindowsResponse } from "./types.js";
 
 interface RemoteSnapshot {
   sessionId: string;
@@ -54,14 +55,37 @@ export async function requestAgent<T>(host: AgentHostConfig, path: string, init:
 
 function toRemoteSession(host: AgentHostConfig, session: SessionSummary): SessionSummary {
   const tmuxName = session.tmuxName ?? session.name;
+  const agentType = remoteAgentType(session);
   return {
     ...session,
     id: session.type === "tmux" ? `tmux:${host.id}:${tmuxName}` : `${session.type}:${host.id}:${session.name}`,
     hostId: host.id,
     name: tmuxName,
     tmuxName,
+    agentType,
+    status: remoteStatus(session.status, session.activePaneCommand, agentType),
     tags: [...(session.tags ?? []), host.id]
   };
+}
+
+function remoteAgentType(session: SessionSummary): AgentType {
+  if (session.agentType !== "custom") return session.agentType;
+  const inferred = inferAgentType([
+    session.name,
+    session.displayName,
+    session.command,
+    session.activePaneCommand,
+    session.cwd,
+    session.activePanePath
+  ].filter(Boolean).join(" "));
+  return inferred;
+}
+
+function remoteStatus(status: SessionStatus, command: string | undefined, agentType: AgentType): SessionStatus {
+  if (status !== "unknown") return status;
+  if (agentType === "shell") return "idle";
+  if (command && !["zsh", "bash", "fish", "sh"].includes(command)) return "running";
+  return status;
 }
 
 export async function listAgentHostSessions(): Promise<SessionSummary[]> {
