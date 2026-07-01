@@ -356,7 +356,7 @@ button:disabled {
 }
 
 .status-dot.running {
-  color: #44c772;
+  color: #72a7ff;
 }
 
 .status-dot.waiting_input {
@@ -368,14 +368,17 @@ button:disabled {
 }
 
 .status-dot.completed {
-  color: #72a7ff;
+  color: #7d8b95;
 }
 
 .status-dot.error {
   color: #ff6b5f;
 }
 
-.status-dot.idle,
+.status-dot.idle {
+  color: #44c772;
+}
+
 .status-dot.unknown {
   color: #7d8b95;
 }
