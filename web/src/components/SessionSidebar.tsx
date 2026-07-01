@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Bot, Circle, FolderOpen, Hammer, Monitor, Plus, RefreshCw, Sparkles, SquareTerminal, Terminal } from "lucide-react";
-import type { AgentType, SessionSummary } from "../lib/api";
+import { Bot, ChevronLeft, Circle, FolderOpen, Hammer, Monitor, Plus, RefreshCw, Sparkles, SquareTerminal, Terminal } from "lucide-react";
+import { listDirectories } from "../lib/api";
+import type { AgentType, DirectoryListing, SessionSummary } from "../lib/api";
 import { agentLabel, LAUNCH_AGENT_TYPES } from "../lib/agents";
 import { displaySessionPath, stripRemotePathPrefix } from "../lib/sessionDisplay";
 
@@ -92,11 +93,41 @@ export function SessionSidebar({
   const [groupMode, setGroupMode] = useState<GroupMode>(() =>
     window.localStorage.getItem("session-control:group-mode") === "agent" ? "agent" : "path"
   );
+  const [pathBrowser, setPathBrowser] = useState<{
+    loading: boolean;
+    listing?: DirectoryListing;
+    error?: string;
+  }>();
   const groupedSessions = useMemo(() => groupSessions(sessions, groupMode), [sessions, groupMode]);
+  const selectedHost = hosts.find((host) => host.id === startHostId);
+  const isRemoteHost = selectedHost?.type === "agent";
 
   function selectGroupMode(nextMode: GroupMode) {
     setGroupMode(nextMode);
     window.localStorage.setItem("session-control:group-mode", nextMode);
+  }
+
+  async function openRemotePathBrowser(path = startCwd || "~") {
+    if (!isRemoteHost) {
+      onPickStartCwd();
+      return;
+    }
+
+    setPathBrowser((current) => ({ ...current, loading: true, error: undefined }));
+    try {
+      const listing = await listDirectories(startHostId, path);
+      onStartCwdChange(listing.path);
+      setPathBrowser({ loading: false, listing });
+    } catch (err) {
+      setPathBrowser({
+        loading: false,
+        error: err instanceof Error ? err.message : "Failed to load remote path"
+      });
+    }
+  }
+
+  function closeRemotePathBrowser() {
+    setPathBrowser(undefined);
   }
 
   return (
@@ -148,14 +179,55 @@ export function SessionSidebar({
             />
             <button
               className="icon-button"
-              onClick={onPickStartCwd}
-              title={startHostId === "local" ? "Choose directory" : "Remote paths must be typed"}
-              disabled={startHostId !== "local"}
+              onClick={() => openRemotePathBrowser()}
+              title={startHostId === "local" ? "Choose directory" : `Browse ${selectedHost?.label ?? startHostId}`}
             >
               <FolderOpen size={16} />
             </button>
           </div>
         </label>
+        {isRemoteHost && pathBrowser && (
+          <div className="remote-path-browser">
+            <div className="remote-path-browser-header">
+              <div>
+                <strong>{selectedHost?.label ?? startHostId}</strong>
+                <span title={pathBrowser.listing?.path ?? startCwd}>{pathBrowser.listing?.path ?? startCwd}</span>
+              </div>
+              <button className="icon-button compact" onClick={closeRemotePathBrowser} title="Close path browser">
+                X
+              </button>
+            </div>
+            <div className="remote-path-browser-actions">
+              <button
+                onClick={() => pathBrowser.listing?.parent && openRemotePathBrowser(pathBrowser.listing.parent)}
+                disabled={!pathBrowser.listing?.parent || pathBrowser.loading}
+              >
+                <ChevronLeft size={14} />
+                Parent
+              </button>
+              <button onClick={() => openRemotePathBrowser(startCwd || "~")} disabled={pathBrowser.loading}>
+                <RefreshCw size={14} />
+                Refresh
+              </button>
+            </div>
+            {pathBrowser.loading && <p className="remote-path-browser-message">Loading...</p>}
+            {pathBrowser.error && <p className="remote-path-browser-error">{pathBrowser.error}</p>}
+            {pathBrowser.listing && !pathBrowser.loading && (
+              <div className="remote-path-list">
+                {pathBrowser.listing.entries.length === 0 ? (
+                  <p className="remote-path-browser-message">No subdirectories</p>
+                ) : (
+                  pathBrowser.listing.entries.map((entry) => (
+                    <button key={entry.path} onClick={() => openRemotePathBrowser(entry.path)} title={entry.path}>
+                      <FolderOpen size={14} />
+                      <span>{entry.name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="session-list">

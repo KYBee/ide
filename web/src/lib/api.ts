@@ -79,6 +79,17 @@ export interface AppConfig {
   projects: QuickLaunch[];
 }
 
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+}
+
+export interface DirectoryListing {
+  path: string;
+  parent?: string;
+  entries: DirectoryEntry[];
+}
+
 export interface SkillSummary {
   id: string;
   name: string;
@@ -130,6 +141,14 @@ export function loadConfig(): Promise<AppConfig> {
 
 export function loadSkills(): Promise<SkillRegistry> {
   return request("/api/skills");
+}
+
+export function listDirectories(hostId: string, path: string): Promise<DirectoryListing> {
+  const params = new URLSearchParams({ path });
+  const route = hostId === "local"
+    ? `/api/filesystem/directories?${params.toString()}`
+    : `/api/hosts/${encodeURIComponent(hostId)}/filesystem/directories?${params.toString()}`;
+  return request(route);
 }
 
 export function createSession(input: {
