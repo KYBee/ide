@@ -90,7 +90,9 @@ export interface SkillSummary {
   builtin: boolean;
 }
 
+export type HostSkillRegistry = Record<string, { codex: SkillSummary[] }>;
+
 export interface SkillRegistry {
   codex: SkillSummary[];
-  hosts?: Record<string, { codex: SkillSummary[] }>;
+  hosts?: HostSkillRegistry;
 }
