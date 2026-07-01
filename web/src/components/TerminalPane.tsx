@@ -79,6 +79,7 @@ export function TerminalPane({ session }: TerminalPaneProps) {
     let disposed = false;
     let resizeFrame: number | undefined;
     let resizeDebounceTimer: number | undefined;
+    const resizeBurstTimers = new Set<number>();
     let lastSentSize: { cols: number; rows: number } | undefined;
     const fitTerminal = () => {
       if (disposed) return;
@@ -108,8 +109,23 @@ export function TerminalPane({ session }: TerminalPaneProps) {
         resizeDebounceTimer = window.setTimeout(sendResize, delay);
       });
     };
+    const scheduleResizeBurst = () => {
+      for (const delay of [0, 50, 150, 350, 800]) {
+        const timer = window.setTimeout(() => {
+          resizeBurstTimers.delete(timer);
+          scheduleResize(0);
+        }, delay);
+        resizeBurstTimers.add(timer);
+      }
+    };
     const sendResizeAfterPanelDrag = () => {
-      scheduleResize(0);
+      scheduleResizeBurst();
+    };
+    const handleViewportResize = () => {
+      scheduleResizeBurst();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") scheduleResizeBurst();
     };
 
     const openSocket = () => {
@@ -128,9 +144,7 @@ export function TerminalPane({ session }: TerminalPaneProps) {
         reconnectAttemptRef.current = 0;
         setConnectionState("connected");
         setMessage(undefined);
-        sendResize();
-        window.setTimeout(sendResize, 50);
-        window.setTimeout(sendResize, 250);
+        scheduleResizeBurst();
       });
       socket.addEventListener("message", async (event) => {
         const payload = typeof event.data === "string" ? event.data : await event.data.text();
@@ -176,15 +190,26 @@ export function TerminalPane({ session }: TerminalPaneProps) {
 
     const resizeObserver = new ResizeObserver(() => scheduleResize());
     resizeObserver.observe(hostRef.current);
+    if (hostRef.current.parentElement) resizeObserver.observe(hostRef.current.parentElement);
     window.addEventListener(PANEL_RESIZE_END_EVENT, sendResizeAfterPanelDrag);
+    window.addEventListener("resize", handleViewportResize);
+    window.addEventListener("focus", handleViewportResize);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
+    scheduleResizeBurst();
 
     return () => {
       disposed = true;
       if (resizeFrame !== undefined) window.cancelAnimationFrame(resizeFrame);
       if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
+      for (const timer of resizeBurstTimers) window.clearTimeout(timer);
       window.clearTimeout(reconnectTimerRef.current);
       resizeObserver.disconnect();
       window.removeEventListener(PANEL_RESIZE_END_EVENT, sendResizeAfterPanelDrag);
+      window.removeEventListener("resize", handleViewportResize);
+      window.removeEventListener("focus", handleViewportResize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.visualViewport?.removeEventListener("resize", handleViewportResize);
       inputDisposable.dispose();
       socketRef.current?.close();
       socketRef.current = null;

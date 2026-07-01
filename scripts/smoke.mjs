@@ -26,6 +26,12 @@ function hasBadValue(value) {
   return value === undefined || value === null || value === "" || String(value).includes("undefined");
 }
 
+function expectedTmuxSessionId(session) {
+  return session.hostId && session.hostId !== "local"
+    ? `tmux:${session.hostId}:${session.name}`
+    : `tmux:${session.name}`;
+}
+
 async function fetchWithTimeout(url, init) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -86,7 +92,7 @@ function validateSessions(sessions) {
     seenIds.add(session.id);
 
     if (session.type === "tmux") {
-      assert(session.id === `tmux:${session.name}`, `tmux id matches name: ${session.id}`);
+      assert(session.id === expectedTmuxSessionId(session), `tmux id matches name: ${session.id}`);
       assert(session.tmuxName === session.name, `tmuxName matches name: ${session.id}`);
       assert(!hasBadValue(session.activePaneId), `tmux active pane is present: ${session.id}`);
       assert(Number.isFinite(session.windowCount), `tmux window count is numeric: ${session.id}`);
@@ -97,8 +103,16 @@ function validateSessions(sessions) {
   pass(`sessions endpoint returned ${sessions.length} sessions`);
 }
 
-function validateWindows(payload, sessionName) {
-  assert(payload?.sessionId === `tmux:${sessionName}`, `windows payload session id matches ${sessionName}`);
+function tmuxWindowsUrl(session) {
+  if (session.hostId && session.hostId !== "local") {
+    return `${apiBaseUrl}/api/hosts/${encodeURIComponent(session.hostId)}/sessions/tmux/${encodeURIComponent(session.name)}/windows`;
+  }
+  return `${apiBaseUrl}/api/sessions/tmux/${encodeURIComponent(session.name)}/windows`;
+}
+
+function validateWindows(payload, session) {
+  const sessionName = session.name;
+  assert(payload?.sessionId === expectedTmuxSessionId(session), `windows payload session id matches ${sessionName}`);
   assert(Array.isArray(payload?.windows), `windows response is an array for ${sessionName}`);
   if (!Array.isArray(payload?.windows)) return;
 
@@ -190,10 +204,10 @@ async function main() {
 
   if (firstTmuxSession) {
     const windows = await readJson(
-      `${apiBaseUrl}/api/sessions/tmux/${encodeURIComponent(firstTmuxSession.name)}/windows`,
+      tmuxWindowsUrl(firstTmuxSession),
       "api tmux windows"
     );
-    validateWindows(windows, firstTmuxSession.name);
+    validateWindows(windows, firstTmuxSession);
   } else {
     notes.push("no tmux sessions available; skipped windows endpoint");
   }
