@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Bot, Circle, FolderOpen, Hammer, Monitor, Plus, RefreshCw, Sparkles, SquareTerminal, Terminal } from "lucide-react";
 import type { AgentType, SessionSummary } from "../lib/api";
 import { agentLabel, LAUNCH_AGENT_TYPES } from "../lib/agents";
+import { displaySessionPath, stripRemotePathPrefix } from "../lib/sessionDisplay";
 
 interface SessionSidebarProps {
   sessions: SessionSummary[];
@@ -36,23 +37,13 @@ function sessionSubtitle(session: SessionSummary): string {
   return [session.agentType, mode, location, command].filter(Boolean).join(" · ");
 }
 
-function isRemoteSession(session: SessionSummary): boolean {
-  return session.hostId !== "local";
-}
-
-function displaySessionPath(session: SessionSummary, path?: string): string | undefined {
-  if (!path) return undefined;
-  return isRemoteSession(session) ? `Remote ${path}` : path;
-}
-
 function sessionPath(session: SessionSummary): string {
   return displaySessionPath(session, session.cwd ?? session.activePanePath) ?? "Unknown path";
 }
 
 function pathDepth(value: string): number {
   if (value === "~" || value === "Unknown path") return 0;
-  if (value.startsWith("Remote ")) return pathDepth(value.slice("Remote ".length));
-  return value.split("/").filter(Boolean).length;
+  return stripRemotePathPrefix(value).split("/").filter(Boolean).length;
 }
 
 function groupSessions(sessions: SessionSummary[], mode: GroupMode): Array<{ key: string; label: string; sessions: SessionSummary[] }> {
