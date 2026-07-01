@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import type { SessionSummary } from "../lib/api";
+import { PANEL_RESIZE_END_EVENT } from "../hooks/usePanelWidths";
 
 interface TerminalPaneProps {
   session?: SessionSummary;
@@ -103,8 +104,12 @@ export function TerminalPane({ session }: TerminalPaneProps) {
       if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
       resizeFrame = window.requestAnimationFrame(() => {
         fitTerminal();
+        if (document.body.classList.contains("is-resizing-panels")) return;
         resizeDebounceTimer = window.setTimeout(sendResize, delay);
       });
+    };
+    const sendResizeAfterPanelDrag = () => {
+      scheduleResize(0);
     };
 
     const openSocket = () => {
@@ -171,6 +176,7 @@ export function TerminalPane({ session }: TerminalPaneProps) {
 
     const resizeObserver = new ResizeObserver(() => scheduleResize());
     resizeObserver.observe(hostRef.current);
+    window.addEventListener(PANEL_RESIZE_END_EVENT, sendResizeAfterPanelDrag);
 
     return () => {
       disposed = true;
@@ -178,6 +184,7 @@ export function TerminalPane({ session }: TerminalPaneProps) {
       if (resizeDebounceTimer !== undefined) window.clearTimeout(resizeDebounceTimer);
       window.clearTimeout(reconnectTimerRef.current);
       resizeObserver.disconnect();
+      window.removeEventListener(PANEL_RESIZE_END_EVENT, sendResizeAfterPanelDrag);
       inputDisposable.dispose();
       socketRef.current?.close();
       socketRef.current = null;
